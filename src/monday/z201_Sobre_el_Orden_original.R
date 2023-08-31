@@ -16,9 +16,9 @@ require("ggplot2")
 
 
 # Poner la carpeta de la materia de SU computadora local
-setwd("C:/Users/Usuario/Documents/P/M/dmeyf/fuente/")
+setwd("/home/aleb/dmeyf23/")
 # Poner sus semillas
-semillas <- c(886609, 201821, 623423, 105389, 151051)
+semillas <- c(17, 19, 23, 29, 31)
 
 # Cargamos el dataset
 dataset <- fread("./datasets/competencia_01.csv")
