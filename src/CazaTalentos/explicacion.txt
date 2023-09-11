@@ -1,0 +1,39 @@
+El ordenamiento sugerido, de peor a mejor, es:
+    [j4, j2, j1, j5, j9, j7, j3, j8, j6]
+
+Realizando ensayos con el archivo "zbasket_c.py" para las condiciones de j4,
+una probabilidad constante de aprox. 0.5 para las jugadoras recrean los resultados.
+
+Para j2, esta probabilidad es de alrededor de 0.65.
+
+Como j1 es básicamente como j2 pero con menos jugadoras, la probabilidad es mayor (0.68 aprox.).
+
+Para j9 se consideran 10 * 100 = 1000 tiradas, que resultaron en 701 aciertos.
+Como consecuencia, una probabilidad de aprox. 0.7 explican los resultados.
+
+Para j5 el cazatalentos eligió a la que mejor le fue en la primera ronda.
+Ejecutando el archivo para las condiciones de este caso,
+se ve que una probabilidad constante de alrededor de 0.75
+aproximadamente reproduce los resultados de la primera ronda.
+Sin embargo, las últimas dos rondas arrojan más información,
+y muestran que la ganadora en particular tenía una probabilidad menor,
+levemente por debajo de 0.7.
+La diferencia con j9 es muy pequeña, y se las podría considerar iguales
+a nivel de significación de 0.05 (por ejemplo, mediante una prueba de wilcoxon).
+
+Para j7, se puede comparar la segunda ronda con las rondas 2 y 3 de j5.
+Como se obtienen mejores resultados con una ronda menos, se considera a j7
+mejor que j5 (o j9). Al correr el archivo, una probabilidad de aprox. 0.75
+explica los resultados.
+
+Para j3, correr el archivo muesta que una probabilidad constante en las jugadoras
+de alrededor de 0.77 reproduce aproximadamente los resultados. Visto de otra manera,
+j3 obtiene el mismo resultado que j7 siendo su conjunto menor,
+por lo que se la considera mejor.
+
+Para j8, el archivo muesta que una probabilidad constante en todas las jugadoras de
+0.75 reproduce aproximadamente los resultados. Pero se tiene información adicional
+que sugiere una p de 0.79 para la elegida en particular. Por lo tanto,
+se la considera mejor que j3.
+
+Para j6, la p aprox. es de 0.8 en soledad, por lo que se considera como la mejor.

@@ -1,7 +1,8 @@
 ```{r}
 # Optimizacion Bayesiana de hiperparametros de  rpart
 # 10-repeated 5-fold Cross Validation
-# trabaja con la clase_ternaria
+# trabaja con la clase_binaria2
+#   POS={BAJA+1, BAJA+2}   NEG={CONTINUA}
 
 # limpio la memoria
 rm(list = ls()) # remove all objects
@@ -24,7 +25,7 @@ PARAM <- list()
 
 PARAM$home <- "C:/Users/Usuario/Documents/P/M/dmeyf/fuente/"
 
-PARAM$experimento <- "HT3220"
+PARAM$experimento <- "HT3330"
 
 # Aqui van las 10 semillas que hacen el 10-repeated
 #  si se pone una sola semilla, se esta haciendo solo 5-fold xval
@@ -39,20 +40,18 @@ PARAM$BO_iter <- 300
 
 # la letra L al final de 1L significa ENTERO
 PARAM$hs <- makeParamSet(
-  # makeNumericParam("cp", lower = -1, upper = 0.1),
-  makeIntegerParam("minsplit", lower = 1L, upper = 8000L),
-  makeIntegerParam("minbucket", lower = 1L, upper = 4000L),
-  makeIntegerParam("maxdepth", lower = 3L, upper = 20L),
-  forbidden = quote(minbucket > 0.5 * minsplit)
+  makeIntegerParam("minsplit", lower = 1L, upper = 2500L),
+  makeIntegerParam("minbucket", lower = 1L, upper = 1250L),
+  makeIntegerParam("maxdepth", lower = 5L, upper = 18L),
+  makeIntegerParam("corte", lower = 9000L, upper = 10000L),
+  forbidden = quote(minbucket > 0.5 * minsplit) # minbuket NO PUEDE ser mayor que la mitad de minsplit
 )
-# minbuket NO PUEDE ser mayor que la mitad de minsplit
 
 # este valor debe ser 1 si se utiliza Windows
-PARAM$cores <- 1 # 5
+PARAM$cores <- 1
 ```
 
 ```{r}
-#------------------------------------------------------------------------------
 # graba a un archivo los componentes de lista
 # para el primer registro, escribe antes los titulos
 
@@ -85,8 +84,8 @@ loguear <- function(reg, arch = NA, folder = "./work/", ext = ".txt",
 }
 ```
 
+
 ```{r}
-#------------------------------------------------------------------------------
 # particionar agrega una columna llamada fold a un dataset
 #   que consiste en una particion estratificada segun agrupa
 # particionar( data=dataset, division=c(70,30),
@@ -121,7 +120,7 @@ ArbolSimple <- function(fold_test, data, param, qfolds) {
   
   # genero el modelo
   # entreno en todo MENOS el fold_test que uso para testing
-  modelo <- rpart("clase_ternaria ~ .",
+  modelo <- rpart("clase_virtual ~ . - clase_ternaria",
     data = data[fold != fold_test, ],
     xval = 0,
     control = param
@@ -136,17 +135,22 @@ ArbolSimple <- function(fold_test, data, param, qfolds) {
   )
 
   # esta es la probabilidad de baja
-  prob_baja2 <- prediccion[, "BAJA+2"]
+  prob_pos <- prediccion[, "POS"]
 
-  # calculo la ganancia
-  ganancia_testing <- data[fold == fold_test][
-    prob_baja2 > 1 / 40,
+  tb_final <- copy(data[fold == fold_test, list(clase_ternaria)])
+  tb_final[, prob := prob_pos]
+  setorder(tb_final, -prob)
+
+  # calculo la ganancia, los PARAM$corte de mayor probabilidad
+  ganancia_testing <- tb_final[
+    1:round(param$corte / qfolds),
     sum(ifelse(clase_ternaria == "BAJA+2",
       273000, -7000
     ))
   ]
   
   ganancia_testing <- ganancia_testing * 1.0/qfolds
+  rm(tb_final)
   return(ganancia_testing)
 }
 ```
@@ -195,10 +199,7 @@ EstimarGanancia <- function(x) {
     gans <- c(gans, ganancias)
   }
 
-  # imprimo el vector con las ganancias de xval
-  # para que se aprecia la variabilidad aun con 5-fold
   # cat(gans, "\n")
-
   # logueo
   xx <- x
   xx$xval_repeats <- length(PARAM$semilla_azar)
@@ -220,6 +221,8 @@ setwd(PARAM$home)
 dataset <- fread("./datasets/competencia_01.csv")
 # entreno en 202103
 dataset <- dataset[foto_mes == 202103]
+
+dataset[, clase_virtual := ifelse(clase_ternaria == "CONTINUA", "NEG", "POS")]
 
 # creo la carpeta donde va el experimento
 #  HT  representa  Hiperparameter Tuning

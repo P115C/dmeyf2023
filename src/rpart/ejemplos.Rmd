@@ -1,0 +1,42 @@
+```{r}
+require("data.table")
+require("rlist")
+```
+
+```{r}
+dt = data.table(
+  ID = c("b","b","b","a","a","c"),
+  a = 1:6,
+  b = 7:12,
+  c = 13:18
+)
+
+dt
+```
+
+```{r}
+dt[, v0 := (b < 11) & (c > 15)]
+dt
+```
+
+
+```{r}
+
+dat <- data.frame(
+  jugadora = as.factor(c(rep("j5", 2), rep("j6", 10))),
+  puntaje = c(
+    69.01, 70.01,
+    
+    68, 74, 78, 70, 68.01, 63, 80,
+    67.9, 67, 65
+  )
+)
+
+test <- wilcox.test(dat$puntaje ~ dat$jugadora)
+test
+```
+
+```{r}
+dat
+```
+

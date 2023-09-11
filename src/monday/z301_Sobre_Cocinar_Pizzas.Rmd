@@ -341,12 +341,15 @@ print(run_md_ms)
 ```
 
 ```{r}
+# ternario gridsearch:
+#   maxdepth=5; minsplit=500; minbucket=50
+
 # Con clase_binaria y auc en prueba (promediado en semillas), y con bayesiano:
 #   maxdepth=11; minsplit=200; minbucket=1
 #   maxdepth=16; minsplit=236; minbucket=1
 #   maxdepth=10; minsplit=248; minbucket=1
 
-# bayesiana con cv:
+# bayesiana ternaria con cv:
 #   maxdepth=12; minsplit=1733; minbucket=378
 
 ```

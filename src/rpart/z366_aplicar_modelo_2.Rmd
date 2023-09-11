@@ -1,0 +1,247 @@
+```{r}
+# limpio la memoria
+rm(list = ls()) # remove all objects
+gc() # garbage collection
+```
+
+```{r}
+require("data.table")
+require("rlist")
+require("rpart")
+require("parallel")
+```
+
+```{r}
+PARAM <- list()
+
+#-----------------------------
+PARAM$experimento <- "KA4000-01"
+
+# puede ser { "ternaria", "binaria1", "binaria2" }
+PARAM$clase <- "ternaria"
+
+# poner 0 si no se quiere que se haga oversampling
+PARAM$oversampling <- 0 # 100
+
+# poner algo mayor a cero si se quiere cortar por probabilidad
+#  generalmente debe ser 0.025 , si se quiere cortar por probabilidad
+PARAM$prob_corte <-  0.025 # -1
+
+# poner -1 si se quiere cortar por probabilidad
+#  un numero mayor o igual a cero indica que se corta por cant envios
+PARAM$corte <- -1 # 9500
+
+PARAM$rpart$cp <- -1
+PARAM$rpart$minsplit <- 1613 # 1733
+PARAM$rpart$minbucket <- 303  # 378
+PARAM$rpart$maxdepth <- 7 # 12
+
+PARAM$semilla_azar <- c(886609, 201821, 623423, 105389, 151051)
+PARAM$xval_folds <- 5  # folds del cross validation
+
+archivo_log <- "aplicar_modelo_log0.txt"
+#-----------------------------
+
+if( PARAM$prob_corte <= 0 & PARAM$corte <= 0 ) stop("debe elegir al menos una opcion de corte" )
+if( PARAM$prob_corte > 0 & PARAM$corte > 0 ) stop("No puede elegir dos opcinoes de corte al mismo tiempo" )
+if( PARAM$clase == "binaria2" & PARAM$corte <= 0 ) stop( "en el caso de clase binaria2  debe cortar por envios, PARAM$corte" )
+```
+
+```{r}
+setwd("C:/Users/Usuario/Documents/P/M/dmeyf/fuente/")
+
+# cargo el dataset
+dataset <- fread("./datasets/competencia_01.csv")
+
+# nuevas variables
+# dataset[, var_1 := (ctrx_quarter >= 48) & (cpayroll_trx < 1)]
+# dataset[, var_1 := (18 <= ctrx_quarter) & (ctrx_quarter < 48) & (mcaja_ahorro >= 3823.2)]
+# dataset[, ctrx_quarter := log(ctrx_quarter + 1)]
+# dataset[, deuda_por_prestamo_personal := mprestamos_personales / cprestamos_personales]
+# dataset[, deuda_por_prestamo_prendario := mprestamos_prendarios / cprestamos_prendarios]
+# dataset[, deuda_por_prestamo_hipo := mprestamos_hipotecarios / cprestamos_hipotecarios]
+# dataset[, mrentabilidad_pct := mrentabilidad / (mrentabilidad_annual + 1)]
+# dataset[, cprestamos_tot := cprestamos_personales + cprestamos_prendarios + cprestamos_hipotecarios]
+# dataset[, Master_limite_consumo := (Master_mconsumototal + 1) / (Master_mlimitecompra + 1) ]
+# dataset[, Visa_limite_consumo := (Visa_mconsumototal + 1) / (Visa_mlimitecompra + 1) ]
+```
+
+```{r}
+r = sapply(dataset, function(x) sum(is.na(x)))
+r = r[r > 0]
+r
+```
+
+
+```{r}
+dataset <- dataset[foto_mes == 202103]
+
+switch(PARAM$clase,
+  "ternaria"  = dataset[, clase_nueva := ifelse( clase_ternaria=="BAJA+2", "POS", clase_ternaria ) ],
+  "binaria1"  = dataset[, clase_nueva := ifelse( clase_ternaria=="BAJA+2", "POS", "NEG" ) ],
+  "binaria2"  = dataset[, clase_nueva := ifelse( clase_ternaria %in% c( "BAJA+1","BAJA+2"), "POS", "NEG" ) ],
+  stop(" PARAM$clase debe tener un valor valido")
+)
+
+setwd("C:/Users/Usuario/Documents/P/M/dmeyf/fuente/")
+# creo la carpeta donde va el experimento
+dir.create("./exp/", showWarnings = FALSE)
+dir.create( paste0("./exp/", PARAM$experimento, "/"), showWarnings = FALSE)
+```
+
+
+
+```{r}
+#------------------------------------------------------------------------------
+# graba a un archivo los componentes de lista
+# para el primer registro, escribe antes los titulos
+
+loguear <- function(reg, arch, verbose = FALSE) {
+  archivo <- arch
+
+  # Escribo los titulos
+  if (!file.exists(archivo)) {
+    linea <- paste0(
+      "fecha\t",
+      paste(list.names(reg), collapse = "\t"), "\n"
+    )
+
+    cat(linea, file = archivo)
+  }
+
+  # la fecha y hora
+  linea <- paste0(
+    format(Sys.time(), "%Y%m%d %H%M%S"), "\t",
+    gsub(", ", "\t", toString(reg)), "\n"
+  )
+
+  # grabo al archivo
+  cat(linea, file = archivo, append = TRUE)
+
+  # imprimo por pantalla
+  if (verbose) cat(linea)
+}
+```
+
+```{r}
+#------------------------------------------------------------------------------
+# particionar agrega una columna llamada fold a un dataset
+#   que consiste en una particion estratificada segun agrupa
+# particionar( data=dataset, division=c(70,30),
+#  agrupa=clase_ternaria, seed=semilla)   crea una particion 70, 30
+# particionar( data=dataset, division=c(1,1,1,1,1),
+#  agrupa=clase_ternaria, seed=semilla)   divide el dataset en 5 particiones
+
+particionar <- function(data, division, agrupa = "", campo = "fold",
+                        start = 1, seed = NA) {
+  if (!is.na(seed)) set.seed(seed)
+
+  bloque <- unlist(mapply(
+    function(x, y) {
+      rep(y, x)
+    }, division,
+    seq(from = start, length.out = length(division))
+  ))
+
+  data[, (campo) := sample(rep(bloque, ceiling(.N / length(bloque))))[1:.N],
+    by = agrupa
+  ]
+}
+```
+
+```{r}
+# Establezco el Working Directory DEL EXPERIMENTO
+setwd("C:/Users/Usuario/Documents/P/M/dmeyf/fuente/")
+setwd(paste0("./exp/", PARAM$experimento, "/"))
+
+gans <- c()
+for (semilla in PARAM$semilla_azar)
+{
+  # generalmente  c(1, 1, 1, 1, 1 )  cinco unos
+  divi <- rep(1, PARAM$xval_folds)  # PARAM$xval_folds: la cantidad de folds
+
+  # particiono en dataset en folds
+  particionar(dataset, divi, seed = semilla, agrupa = "clase_nueva")
+
+  gans_folds <- c()
+  for (i in seq(PARAM$xval_folds))  # 1 2 3 4 5
+  {
+      data_fold <- dataset[fold != i, ]
+      
+      pesos_fold <- rep( 1.0, nrow(data_fold) )
+      if( PARAM$oversampling > 0 )   
+        pesos_fold <- data_fold[, ifelse( clase_nueva %in% c("POS"), PARAM$oversampling, 1) ]
+      
+      # genero el modelo
+      # entreno en todo MENOS el fold_test que uso para testing
+      modelo <- rpart(
+        "clase_nueva ~ . -clase_ternaria",
+        data = data_fold,
+        xval = 0,
+        control = PARAM$rpart,
+        weights = pesos_fold
+      )
+      
+      # aplico el modelo a los datos de testing
+      # aplico el modelo sobre los datos de testing
+      # quiero que me devuelva probabilidades
+      data_test = dataset[fold == i]
+      
+      prediccion <- predict(
+        modelo,
+        data_test,
+        type = "prob"
+      )
+      # esta es la probabilidad de BAJA+2
+      prob_baja2 <- prediccion[, "POS"]
+      
+      # calculo la ganancia
+      g <- data_test[
+        prob_baja2 > PARAM$prob_corte,
+        sum(ifelse(clase_nueva == "POS", 273000, -7000))
+      ]
+      
+      g <- g * 1.0/PARAM$xval_folds
+      gans_folds <- c(gans_folds, g)
+  }
+  
+  dataset[, fold := NULL]
+  gans <- c(gans, unlist(gans_folds))
+}
+
+cat("\n--------\n")
+cat("gans:", gans, "\n")
+cat("mean(gans):", mean(gans), "\n")
+cat("std(gans):", sd(gans), "\n")
+cat("--------\n")
+
+# logueo
+xx <- PARAM$rpart
+xx$oversampling <- PARAM$oversampling
+xx$xval_repeats <- length(PARAM$semilla_azar)
+xx$xval_folds <- PARAM$xval_folds
+xx$mean_gans <- mean(gans)
+xx$std_gans <- sd(gans)
+loguear(xx, arch = archivo_log)
+```
+```{r}
+table(dataset$var_1)
+```
+
+```{r}
+table(dataset$clase_nueva)
+```
+
+```{r}
+modelo$variable.importance
+```
+
+```{r}
+require("ggplot2")
+ggplot(dataset, aes(x=ctrx_quarter)) + geom_boxplot()
+```
+```{r}
+dataset[, ctrx_quarter_2 := log(ctrx_quarter + 1)]
+ggplot(dataset, aes(x=ctrx_quarter_2)) + geom_boxplot()
+```
+
