@@ -49,6 +49,9 @@ setwd("C:/Users/Usuario/Documents/P/M/dmeyf/fuente/")
 # cargo el dataset
 dataset <- fread("./datasets/competencia_01.csv")
 
+dataset[, Visa_mlimitecompra := ifelse(is.na(Visa_mlimitecompra), 0, Visa_mlimitecompra)]
+dataset[, Visa_mconsumosdolares := ifelse(is.na(Visa_mconsumosdolares), 0, Visa_mconsumosdolares)]
+
 switch(PARAM$clase,
   "ternaria"  = dataset[, clase_nueva := ifelse( clase_ternaria=="BAJA+2", "POS", clase_ternaria ) ],
   "binaria1"  = dataset[, clase_nueva := ifelse( clase_ternaria=="BAJA+2", "POS", "NEG" ) ],

@@ -32,9 +32,9 @@ PARAM$prob_corte <-  0.025 # -1
 PARAM$corte <- -1 # 9500
 
 PARAM$rpart$cp <- -1
-PARAM$rpart$minsplit <- 1613 # 1733
-PARAM$rpart$minbucket <- 303  # 378
-PARAM$rpart$maxdepth <- 7 # 12
+PARAM$rpart$minsplit <- 1733 # 1733
+PARAM$rpart$minbucket <- 378  # 378
+PARAM$rpart$maxdepth <- 12 # 12
 
 PARAM$semilla_azar <- c(886609, 201821, 623423, 105389, 151051)
 PARAM$xval_folds <- 5  # folds del cross validation
@@ -64,6 +64,10 @@ dataset <- fread("./datasets/competencia_01.csv")
 # dataset[, cprestamos_tot := cprestamos_personales + cprestamos_prendarios + cprestamos_hipotecarios]
 # dataset[, Master_limite_consumo := (Master_mconsumototal + 1) / (Master_mlimitecompra + 1) ]
 # dataset[, Visa_limite_consumo := (Visa_mconsumototal + 1) / (Visa_mlimitecompra + 1) ]
+
+dataset[, Visa_mlimitecompra := ifelse(is.na(Visa_mlimitecompra), 0, Visa_mlimitecompra)]
+dataset[, Visa_mconsumosdolares := ifelse(is.na(Visa_mconsumosdolares), 0, Visa_mconsumosdolares)]
+ 
 ```
 
 ```{r}
