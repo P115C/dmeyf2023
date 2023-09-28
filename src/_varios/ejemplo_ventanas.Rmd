@@ -1,0 +1,162 @@
+```{r}
+library(data.table)
+library(zoo)
+```
+
+```{r}
+a <- c(1, 2, 3, 4, 5, 6, 7, 8)
+a
+```
+
+```{r}
+shift(a, 2L, fill = NA, type="lag")
+```
+
+```{r}
+set.seed(42)
+DT <- data.table(x = rnorm(10), y = rlnorm(10), z = runif(10), g = c("a", "b"), key = "g")
+DT
+```
+```{r}
+DT[, paste0("ravg_", c("x", "y")) := lapply(.SD, rollmean, k = 3, na.pad = TRUE), 
+   by = g, .SDcols = c("x", "y")]
+DT
+```
+```{r}
+DT <- data.table(ID=c('A', 'A', 'A', 'A', 'A', 'A', 'B', 'B', 'B', 'C', 'C', 'C')
+               , value_type =c('type 1', 'type 1','type 2','type 1','type 2','type 2','type 1','type 1','type 2','type 1','type 1','type 1')
+               , value=c(1,4,7,2,3,5,1,6,8,2,2,3))
+DT
+```
+
+```{r}
+n <- 3L
+DT[, roll_mean := {
+        v <- if (.N - n >= 1L) c(seq.int(n), rep(n, .N-n)) else seq.int(min(n, .N))
+        shift(frollmean(value, v, adaptive=TRUE))
+    }, .(ID, value_type)]
+DT
+```
+
+```{r}
+DT <- data.table(ID=c('A', 'A', 'A', 'A', 'A', 'A', 'B', 'B', 'B', 'C', 'C', 'C')
+               , mes =c('202001','202002','202003','201912','202005', '202006',
+                               '202001','202005','202003',
+                               '202003','202001','202002')
+               , value=c(1,4,7,2,3,5,1,6,8,2,2,3))
+DT
+```
+
+```{r}
+#DT <- DT[order(mes),]
+setorderv(DT, cols=c("mes"), order=c(1L))
+DT
+```
+
+```{r}
+campos_media <- setdiff(
+  colnames(DT),
+  c("ID", "mes")
+)
+
+nuevas_cols = c()
+
+for(col in campos_media)
+{
+  n <- 3L
+  nueva_col = paste0(col, "_pmean", n)
+  nuevas_cols = c(nuevas_cols, nueva_col)
+  DT[, (nueva_col) := {
+              v <- if (.N - n >= 1L) c(seq.int(n), rep(n, .N-n)) else seq.int(min(n, .N))
+              shift(frollmean(.SD[[col]], v, adaptive=TRUE))
+            }, by = ID]
+
+  nueva_col = paste0(col, "_dif1")
+  nuevas_cols = c(nuevas_cols, nueva_col)
+  DT[, (nueva_col) := {
+      c(NA, diff(.SD[[col]], lag=1, differences=1))
+    }, .(ID)]
+
+  nueva_col = paste0(col, "_dif2")
+  nuevas_cols = c(nuevas_cols, nueva_col)
+  DT[, (nueva_col) := {
+      c(NA, NA, diff(.SD[[col]], lag=1, differences=2))
+    }, .(ID)]
+}
+```
+
+```{r}
+DT
+```
+
+```{r}
+for (col in c("value"))
+{
+  nueva_col = paste0(col, "_nrmr")
+  DT[, (nueva_col) := round(rank(.SD[[col]])/.N, 5), by = "mes"]
+  DT[, (col) := NULL]
+}
+```
+
+```{r}
+DT
+```
+
+
+```{r}
+n <- 3L
+DT[, prev_mean_3 := {
+        v <- if (.N - n >= 1L) c(seq.int(n), rep(n, .N-n)) else seq.int(min(n, .N))
+        shift(frollmean(value, v, adaptive=TRUE))
+    }, by = (ID)]
+DT
+```
+
+```{r}
+DT[, value_diff1 := {
+      c(NA, diff(value, lag=1, differences=1))
+    }, .(ID)]
+DT
+```
+
+```{r}
+DT[, value_diff2 := {
+      c(NA, NA, diff(value, lag=1, differences=2))
+    }, .(ID)]
+DT
+```
+
+```{r}
+DT[, mes_rank := match(mes, sort(unique(mes))) ]
+DT[, mes_prev_dif := {
+        c(NA, diff(mes_rank, lag=1, differences=1))
+    }, .(ID)]
+DT
+```
+
+```{r}
+DT[, value_mes_rnrm := round(rank(value)/.N, 5), by = mes]
+DT
+```
+
+```{r}
+DT[,col0 := 0.0]
+DT
+```
+```{r}
+DT[, col2 := "asd"]
+DT[, col2 := NULL ]
+```
+
+```{r}
+DT[mes %in% c(201912, 202005), col0 := NA ]
+DT
+```
+
+```{r}
+DT[, value_lag1 := {
+        shift(value, 1L, fill = NA, type="lag")
+    }, .(ID)]
+DT
+```
+
