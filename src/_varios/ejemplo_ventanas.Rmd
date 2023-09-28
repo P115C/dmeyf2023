@@ -102,6 +102,7 @@ for (col in c("value"))
 ```{r}
 DT
 ```
+
 ```{r}
 DT[, value2 := value +1]
 
@@ -165,9 +166,16 @@ for (col in cols)
   nuevas_cols = c(nuevas_cols, paste0(col, "_dif1"))
 }
 
+DT[, (nuevas_cols) := shift(.SD, n=1L, fill=NA, type="lag"), 
+                        .SDcols = (cols), by=ID]
 
-DT[, (nuevas_cols) := .SD - shift(.SD, n=1L, fill=NA, type="lag"), 
-                        .SDcols = (cols), by=ID] 
+for (i in 1:length(cols))
+{
+  DT[, (nuevas_cols[i]) := DT[[cols[i]]] - DT[[nuevas_cols[i]]] ]
+}
+
+#DT[, (nuevas_cols) := .SD - shift(.SD, n=1L, fill=NA, type="lag"), 
+#                        .SDcols = (cols), by=ID] 
 
 #DT[, (nuevas_cols) := lapply(.SD, function(x) c(NA, diff(x, lag=1, differences=1))),
 #                    .SDcols = (cols), by=ID]
@@ -177,8 +185,14 @@ for (col in cols)
 {
   nuevas_cols2 = c(nuevas_cols2, paste0(col, "_dif2"))
 }
-DT[, (nuevas_cols2) := .SD - shift(.SD, n=1L, fill=NA, type="lag"), 
-                        .SDcols = (nuevas_cols), by=ID] 
+
+DT[, (nuevas_cols2) := shift(.SD, n=1L, fill=NA, type="lag"), 
+                        .SDcols = (nuevas_cols), by=ID]
+
+for (i in 1:length(cols))
+{
+  DT[, (nuevas_cols2[i]) := DT[[nuevas_cols[i]]] - DT[[nuevas_cols2[i]]] ]
+}
 
 #DT[, (nuevas_cols) := lapply(.SD, function(x) {
 #                        if (.N <= 2) rep(NA, .N) else
@@ -187,7 +201,10 @@ DT[, (nuevas_cols2) := .SD - shift(.SD, n=1L, fill=NA, type="lag"),
 #                    .SDcols = (cols), by=ID]
 
 DT
+```
 
+```{r}
+DT
 ```
 
 
@@ -250,14 +267,15 @@ for(col in campos_nrm_rango)
 {
   nuevas_cols = c(nuevas_cols, paste0(col, "_nrmr1"))
 }
-DT[, (nuevas_cols) := lapply(.SD, function(x) round(rank(x)/.N, 5)),
-                    .SDcols = (campos_nrm_rango), by=mes]
 
+DT[, (nuevas_cols) := frank(.SD)/.N,
+                      .SDcols = (campos_nrm_rango), by=mes]
+DT
 ```
 
 
 ```{r}
-DT[, value_mes_rnrm := round(rank(value)/.N, 5), by = mes]
+DT[, value_rnrm2 := round(rank(value)/.N, 5), by = mes]
 DT
 ```
 
