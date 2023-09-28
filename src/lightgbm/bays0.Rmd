@@ -388,7 +388,8 @@ dtrain <- lgb.Dataset(
 ```
 
 ```{r}
-setwd("~/buckets/b1/") # Establezco el Working Directory
+setwd("~/buckets/b1/")
+setwd(paste0("./exp/", PARAM$experimento, "/"))
 
 # Aqui comienza la configuracion de la Bayesian Optimization
 funcion_optimizar <- EstimarGanancia_lightgbm # la funcion que voy a maximizar
