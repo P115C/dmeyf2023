@@ -216,7 +216,9 @@ dataset <- fread(PARAM$input$dataset)
 # ordernar por mes:
 setorderv(dataset, cols=c("foto_mes"), order=c(1L))
 #dataset <- dataset[order(foto_mes),]
+```
 
+```{r}
 # columna con diferencia de estampas por cliente
 dataset[, foto_mes_rang:= match(foto_mes, sort(unique(foto_mes))) ]
 dataset[, foto_mes_rangdif := {
@@ -233,39 +235,75 @@ campos_media <- setdiff(
     "cliente_edad", "cliente_antiguedad", "ccuenta_corriente")
 )
 
-nuevas_cols = c()
-for(col in campos_media)
+if (TRUE)
 {
   n <- 3L
-  nueva_col = paste0(col, "_pmean", n)
-  nuevas_cols = c(nuevas_cols, nueva_col)
-  dataset[, (nueva_col) := {
-              v <- if (.N - n >= 1L) c(seq.int(n), rep(n, .N-n)) else seq.int(min(n, .N))
-              shift(frollmean(.SD[[col]], v, adaptive=TRUE))
-            }, by = numero_de_cliente]
-  
-  if (FALSE)
+  nuevas_cols = c()
+  for(col in campos_media)
   {
-    nueva_col = paste0(col, "_lag1")
-    nuevas_cols = c(nuevas_cols, nueva_col)
-    dataset[, (nueva_col) := {
-          shift(.SD[[col]], 1L, fill = NA, type="lag")
-      }, .(numero_de_cliente)]
+    nuevas_cols = c(nuevas_cols, paste0(col, "_pmean_", n))
   }
   
-  nueva_col = paste0(col, "_dif1")
-  nuevas_cols = c(nuevas_cols, nueva_col)
-  dataset[, (nueva_col) := {
-      c(NA, diff(.SD[[col]], lag=1, differences=1))
-    }, .(numero_de_cliente)]
+  dataset[, (nuevas_cols) := lapply(.SD, rollmean, k=(n), fill=NA, align="right"),  
+                    .SDcols = (campos_media), by=numero_de_cliente]
+  dataset[, (nuevas_cols) := lapply(.SD, shift, n=1L, fill=NA, type="lag"),  
+                    .SDcols = (nuevas_cols), by=numero_de_cliente]
 
-  nueva_col = paste0(col, "_dif2")
-  nuevas_cols = c(nuevas_cols, nueva_col)
-  dataset[, (nueva_col) := {
-      c(NA, NA, diff(.SD[[col]], lag=1, differences=2))
-    }, .(numero_de_cliente)]
+  nuevas_cols = c()
+  for(col in campos_media)
+  {
+    nuevas_cols = c(nuevas_cols, paste0(col, "_dif1"))
+  }
+  dataset[, (nuevas_cols) := lapply(.SD, function(x) c(NA, diff(x, lag=1, differences=1))),
+                      .SDcols = (campos_media), by=numero_de_cliente]
+       
+  nuevas_cols = c()
+  for (col in cols)
+  {
+    nuevas_cols = c(nuevas_cols, paste0(col, "_dif2"))
+  }
+  dataset[, (nuevas_cols) := lapply(.SD, function(x) {
+                          if (.N <= 2) rep(NA, .N) else
+                          c(NA, NA, diff(x, lag=1, differences=2))
+                        }),  
+                      .SDcols = (campos_media), by=numero_de_cliente]
+
+} else
+{
+  nuevas_cols = c()
+  for(col in campos_media)
+  {
+    n <- 3L
+    nueva_col = paste0(col, "_pmean", n)
+    nuevas_cols = c(nuevas_cols, nueva_col)
+    dataset[, (nueva_col) := {
+                v <- if (.N - n >= 1L) c(seq.int(n), rep(n, .N-n)) else seq.int(min(n, .N))
+                shift(frollmean(.SD[[col]], v, adaptive=TRUE))
+              }, by = numero_de_cliente]
+    
+    if (FALSE)
+    {
+      nueva_col = paste0(col, "_lag1")
+      nuevas_cols = c(nuevas_cols, nueva_col)
+      dataset[, (nueva_col) := {
+            shift(.SD[[col]], 1L, fill = NA, type="lag")
+        }, .(numero_de_cliente)]
+    }
+    
+    nueva_col = paste0(col, "_dif1")
+    nuevas_cols = c(nuevas_cols, nueva_col)
+    dataset[, (nueva_col) := {
+        c(NA, diff(.SD[[col]], lag=1, differences=1))
+      }, .(numero_de_cliente)]
+  
+    nueva_col = paste0(col, "_dif2")
+    nuevas_cols = c(nuevas_cols, nueva_col)
+    dataset[, (nueva_col) := {
+        if (.N <= 2) rep(NA, .N) else
+          c(NA, NA, diff(.SD[[col]], lag=1, differences=2))
+      }, .(numero_de_cliente)]
+  }
 }
-
 
 # normalización por rango:
 campos_nrm_rango <- c("mcuentas_saldo", "mprestamos_personales",
@@ -303,13 +341,24 @@ campos_nrm_rango <- c("mcuentas_saldo", "mprestamos_personales",
                       "Visa_madelantopesos", "Visa_madelantodolares",
                       "Visa_mpagado", "Visa_mconsumototal")
 
-for (col in campos_nrm_rango)
+if (TRUE)
 {
-  nueva_col = paste0(col, "_nrmr")
-  dataset[, (nueva_col) := round(rank(.SD[[col]])/.N, 5), by = "foto_mes"]
-  dataset[, (col) := NULL]
+  nuevas_cols = c()
+  for(col in campos_nrm_rango)
+  {
+    nuevas_cols = c(nuevas_cols, paste0(col, "_nrmr"))
+  }
+  dataset[, (nuevas_cols) := lapply(.SD, function(x) round(rank(x)/.N, 5)),
+                      .SDcols = (campos_nrm_rango), by=foto_mes]
+} else
+{
+  for (col in campos_nrm_rango)
+  {
+    nueva_col = paste0(col, "_nrmr")
+    dataset[, (nueva_col) := round(rank(.SD[[col]])/.N, 5), by = "foto_mes"]
+    dataset[, (col) := NULL]
+  }
 }
-
 ```
 
 

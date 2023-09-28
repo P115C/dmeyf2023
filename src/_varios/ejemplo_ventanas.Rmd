@@ -66,20 +66,21 @@ for(col in campos_media)
   n <- 3L
   nueva_col = paste0(col, "_pmean", n)
   nuevas_cols = c(nuevas_cols, nueva_col)
-  DT[, (nueva_col) := {
+  
+  DT[, (nuevas_cols) := {
               v <- if (.N - n >= 1L) c(seq.int(n), rep(n, .N-n)) else seq.int(min(n, .N))
               shift(frollmean(.SD[[col]], v, adaptive=TRUE))
             }, by = ID]
 
   nueva_col = paste0(col, "_dif1")
   nuevas_cols = c(nuevas_cols, nueva_col)
-  DT[, (nueva_col) := {
+  DT[, (nuevas_cols) := {
       c(NA, diff(.SD[[col]], lag=1, differences=1))
     }, .(ID)]
 
   nueva_col = paste0(col, "_dif2")
   nuevas_cols = c(nuevas_cols, nueva_col)
-  DT[, (nueva_col) := {
+  DT[, (nuevas_cols) := {
       c(NA, NA, diff(.SD[[col]], lag=1, differences=2))
     }, .(ID)]
 }
@@ -101,6 +102,93 @@ for (col in c("value"))
 ```{r}
 DT
 ```
+```{r}
+DT[, value2 := value +1]
+
+n = 3
+cols = c("value", "value2")
+nuevas_cols = c()
+for (col in cols)
+{
+  nuevas_cols = c(nuevas_cols, paste0(col, "_pmean_", n))
+}
+
+DT[, (nuevas_cols) := lapply(.SD, rollmean, k=(n), fill=NA, align="right"),  
+                    .SDcols = (cols), by=ID]
+
+DT[, (nuevas_cols) := lapply(.SD, shift, n=1L, fill=NA, type="lag"),  
+                    .SDcols = (nuevas_cols), by=ID]
+
+
+nuevas_cols = c()
+for (col in cols)
+{
+  nuevas_cols = c(nuevas_cols, paste0(col, "_dif1"))
+}
+DT[, (nuevas_cols) := lapply(.SD, function(x) c(NA, diff(x, lag=1, differences=1))),
+                    .SDcols = (cols), by=ID]
+     
+nuevas_cols = c()
+for (col in cols)
+{
+  nuevas_cols = c(nuevas_cols, paste0(col, "_dif2"))
+}
+DT[, (nuevas_cols) := lapply(.SD, function(x) {
+                        if (.N <= 2) rep(NA, .N) else
+                        c(NA, NA, diff(x, lag=1, differences=2))
+                      }),  
+                    .SDcols = (cols), by=ID]
+
+DT
+```
+
+```{r}
+DT[, value2 := value +1]
+
+n = 3
+cols = c("value", "value2")
+nuevas_cols = c()
+for (col in cols)
+{
+  nuevas_cols = c(nuevas_cols, paste0(col, "_pmean_", n))
+}
+
+DT[, (nuevas_cols) := frollmean(.SD, n=(n), fill=NA, align="right", algo="fast"), 
+                      .SDcols = (cols), by=ID]
+
+DT[, (nuevas_cols) := shift(.SD, n=1L, fill=NA, type="lag"),
+                      .SDcols = (nuevas_cols), by=ID] 
+
+nuevas_cols = c()
+for (col in cols)
+{
+  nuevas_cols = c(nuevas_cols, paste0(col, "_dif1"))
+}
+
+
+DT[, (nuevas_cols) := .SD - shift(.SD, n=1L, fill=NA, type="lag"), 
+                        .SDcols = (cols), by=ID] 
+
+#DT[, (nuevas_cols) := lapply(.SD, function(x) c(NA, diff(x, lag=1, differences=1))),
+#                    .SDcols = (cols), by=ID]
+     
+nuevas_cols2 = c()
+for (col in cols)
+{
+  nuevas_cols2 = c(nuevas_cols2, paste0(col, "_dif2"))
+}
+DT[, (nuevas_cols2) := .SD - shift(.SD, n=1L, fill=NA, type="lag"), 
+                        .SDcols = (nuevas_cols), by=ID] 
+
+#DT[, (nuevas_cols) := lapply(.SD, function(x) {
+#                        if (.N <= 2) rep(NA, .N) else
+#                        c(NA, NA, diff(x, lag=1, differences=2))
+#                      }),  
+#                    .SDcols = (cols), by=ID]
+
+DT
+
+```
 
 
 ```{r}
@@ -111,6 +199,27 @@ DT[, prev_mean_3 := {
     }, by = (ID)]
 DT
 ```
+
+```{r}
+n <- 3L
+
+setorder(DT[, rn := .I], ID)
+rid <- DT[, rowid(ID)]
+
+DT[, roll_mean := shift(frollmean(value, n))]
+
+ix <- DT[rid==3L, which=TRUE]
+set(DT, ix, "roll_mean", DT[, shift(frollmean(value, n - 1L))][ix])
+
+ix <- DT[rid==2L, which=TRUE]
+set(DT, ix, "roll_mean", DT[, shift(value)][ix])
+
+DT[rid==1L, roll_mean := NA_real_]
+setorder(DT, rn)[]
+DT[, rn:=NULL]
+```
+
+
 
 ```{r}
 DT[, value_diff1 := {
@@ -133,6 +242,19 @@ DT[, mes_prev_dif := {
     }, .(ID)]
 DT
 ```
+
+```{r}
+campos_nrm_rango = c("mes", "value")
+nuevas_cols = c()
+for(col in campos_nrm_rango)
+{
+  nuevas_cols = c(nuevas_cols, paste0(col, "_nrmr1"))
+}
+DT[, (nuevas_cols) := lapply(.SD, function(x) round(rank(x)/.N, 5)),
+                    .SDcols = (campos_nrm_rango), by=mes]
+
+```
+
 
 ```{r}
 DT[, value_mes_rnrm := round(rank(value)/.N, 5), by = mes]
