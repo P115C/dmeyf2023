@@ -27,7 +27,7 @@ options(error = function() {
 #  muy pronto esto se leera desde un archivo formato .yaml
 PARAM <- list()
 
-PARAM$experimento <- "HT5231"
+PARAM$experimento <- "HT5231" # "HT5230"
 
 PARAM$input$dataset <- "./datasets/competencia_02.csv.gz"
 
@@ -38,7 +38,7 @@ PARAM$input$training <- c(202101, 202102, 202103, 202104, 202105)
 PARAM$trainingstrategy$undersampling <- 0.3 # 1.0
 PARAM$trainingstrategy$semilla_azar <- 886609 # Aqui poner su  primer  semilla
 
-PARAM$hyperparametertuning$iteraciones <- 80 # 100
+PARAM$hyperparametertuning$iteraciones <- 50 # 100
 PARAM$hyperparametertuning$xval_folds <- 5
 PARAM$hyperparametertuning$POS_ganancia <- 273000
 PARAM$hyperparametertuning$NEG_ganancia <- -7000
