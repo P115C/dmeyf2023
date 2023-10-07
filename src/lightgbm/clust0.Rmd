@@ -1,0 +1,139 @@
+```{r}
+rm(list = ls())
+gc()
+
+require("data.table")
+require("rlist")
+require("dtwclust")
+```
+
+```{r}
+DT <- data.table(ID=c('A', 'A', 'A', 'A', 'A', 'A', 'B', 'B', 'B', 'C', 'C', 'C')
+               , mes =c('202001','202002','202003','201912','202005', '202006',
+                               '202001','202005','202003',
+                               '202003','202001','202002')
+               , value1=c(1,4,7,2,3,5,1,6,8,2,2,3) )
+DT[, value2 := value1 + 100]
+DT
+```
+
+```{r}
+dcast(DT, ID ~ mes,
+      value.var = c('value1', 'value2'),
+      drop=FALSE)
+```
+
+
+```{r}
+r = split(DT, by="ID")
+
+for (dt in r)
+{
+  dt[ , ID := NULL ]
+}
+r
+```
+
+```{r}
+data(uciCT)
+mv <- CharTrajMV[1L:20L]
+
+nombres_cols = colnames(mv[[1]])
+
+mvc <- tsclust(mv, k = 4L, distance = "dtw_basic", 
+               seed = 390, type="h")
+
+# Note how the variables of each series are appended one after the other in the plot
+plot(mvc, type="centroids")
+```
+```{r}
+ejemplo = data.table(nombre = c("A.V1", "A.V2", "D.V3"))
+
+clusters = attributes(mvc)[["cluster"]]
+
+for (id in names(clusters))
+{
+  ejemplo[nombre == id, cluster := clusters[[id]]]
+}
+
+ejemplo
+```
+
+
+```{r}
+ultimas_filas = setNames(data.table(matrix(nrow=0, ncol=length(nombres_cols))), nombres_cols)
+
+for (k in 1:4)
+{
+  cent = attributes(mvc)[["centroids"]][[k]]
+  ultimaf = cent[nrow(cent), ]
+  ultimaf = split(unname(ultimaf),names(ultimaf))
+  ultimas_filas = rbind( ultimas_filas, ultimaf )
+}
+
+ultimas_filas
+```
+
+
+
+```{r}
+a = attributes(mvc)[["centroids"]][[1]]
+a = data.table(a)
+
+ultimaf = a[nrow(a), ]
+#print(a)
+#print(a[nrow(a), ])
+#print(a[10, ])
+
+ultimaf
+```
+
+```{r}
+iclust = 3
+a = attributes(mvc)[["centroids"]][[iclust]]
+a = data.table(a)
+
+b = a[, "TipForce"]
+icol = 2
+b = a[[icol]]
+x = seq(1, length(b), by=1)
+plot(x=x, y=b)
+```
+
+```{r}
+library(ggplot2)
+
+iclust = 3
+a = attributes(mvc)[["centroids"]][[iclust]]
+a = data.table(a)
+
+icol = 3
+colnm = colnames(a)[icol]
+b = a[, colnm, with=FALSE]
+b[, x := seq(1, nrow(a), by=1)]
+
+ggplot(data=b, 
+       aes(x=.data[["x"]], y=.data[[colnm]], group=1)) +
+    geom_line(color="red") +
+    geom_point()
+```
+
+
+```{r}
+plot(mvc, type = "centroids", clus = 1L)
+```
+
+
+```{r}
+# Aqui se debe poner la carpeta de la computadora local
+setwd("~/buckets/b1/") # Establezco el Working Directory
+
+# creo la carpeta donde va el experimento
+dir.create("./exp/", showWarnings = FALSE)
+dir.create(paste0("./exp/", PARAM$experimento, "/"), showWarnings = FALSE)
+
+# Establezco el Working Directory DEL EXPERIMENTO
+setwd(paste0("./exp/", PARAM$experimento, "/"))
+
+```
+
