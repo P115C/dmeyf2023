@@ -1,0 +1,255 @@
+```{r}
+rm(list = ls())
+gc()
+ 
+require("data.table")
+require("rlist")
+require("dtwclust")
+```
+
+```{r}
+setwd("~/buckets/b1/")
+DT <- fread("./datasets/competencia_02.csv.gz")
+
+setorderv(DT, cols=c("foto_mes"), order=c(1L))
+```
+
+```{r}
+unique(DT[["foto_mes"]])
+```
+
+```{r}
+meses0 = c(202005, 202006, 202007, 202008, 202009 ,202010, 202011, 202012,
+           202101 ,202102, 202103 ,202104 ,202105)
+
+DT2 = DT[(foto_mes %in% meses0) & (clase_ternaria == "BAJA+1"),]
+ids = unique(DT2[["numero_de_cliente"]])
+
+mapeo_baja = DT2[, c("numero_de_cliente", "foto_mes")]
+colnames(mapeo_baja)[colnames(mapeo_baja) == "foto_mes"] = "mes_baja"
+
+DT3 = DT[numero_de_cliente %in% ids]
+DT3[mapeo_baja, mes_baja := mes_baja, on="numero_de_cliente"]
+DT3[, tiempo_baja :=  (mes_baja - foto_mes)]
+DT3[, mes_baja := NULL]
+DT3 = DT3[tiempo_baja >= 0, ]
+setorderv(DT3, cols=c("tiempo_baja"), order=c(-1L))
+
+DT3a = copy(DT3)
+
+#meses = c(201908, 201909 ,201910, 201911, 201912, 202001, 202002, 202003 ,202004 ,202005,
+#          202006, 202007, 202008 ,202009 ,202010, 202011 ,202012 ,202101 ,202102, 202103 ,202104 ,202105)
+#DT3[foto_mes %in% meses]
+
+rm(DT2, ids, mapeo_baja, meses0)
+#rm(DT)
+```
+
+
+```{r}
+#table(DT3$tiempo_baja)
+```
+
+
+```{r}
+cols_a_remover = c("tiempo_baja", "foto_mes", "clase_ternaria")
+DT3[, (cols_a_remover) := NULL]
+
+if (FALSE) 
+{
+cols_a_remover = c("active_quarter", "cliente_vip", "internet",
+                   "cliente_edad", "cliente_antiguedad",
+                   "mrentabilidad_annual", "cproductos",
+                   "tcuentas", "ccuenta_corriente",
+                   "ccaja_ahorro", "ctarjeta_debito", "cdescubierto_preacordado",
+                   "ctarjeta_debito_transacciones", "ctarjeta_visa_transacciones",
+                   "ctarjeta_master_transacciones",
+                   "cprestamos_personales", "cprestamos_prendarios", 
+                   "cprestamos_hipotecarios", "cplazo_fijo",
+                   "cinversion1", "cinversion2", "cseguro_vida",
+                   "cpayroll_trx", "cpayroll2_trx", "ccuenta_debitos_automaticos",
+                   "ctarjeta_visa_debitos_automaticos", "ctarjeta_master_debitos_automaticos",
+                   "cpagodeservicios", "cpagomiscuentas", "ccajeros_propios_descuentos",
+                   "ctarjeta_visa_descuentos", "ctarjeta_master_descuentos",
+                   "ccomisiones_mantenimiento", "ccomisiones_otras", "cforex",
+                   "cforex_buy", "cforex_sell", "ctransferencias_recibidas",
+                   "ctransferencias_emitidas", "cextraccion_autoservicio",
+                   "ccheques_depositados", "ccheques_emitidos",
+                   "ccheques_depositados_rechazados", "ccheques_emitidos_rechazados",
+                   "ccallcenter_transacciones",
+                   "ccajas_transacciones", "ccajas_consultas",
+                   "ccajas_depositos", "ccajas_extracciones",
+                   "ccajas_otras", "catm_trx", "catm_trx_other",
+                   "cmobile_app_trx",
+                   "ctarjeta_visa", "ctarjeta_master",
+                   "cseguro_auto", "cseguro_vivienda", "cseguro_accidentes_personales",
+                   "ccaja_seguridad", "tcallcenter", "thomebanking",
+                   "tmobile_app", "Master_delinquency",
+                   "Master_status", "Visa_delinquency",
+                   "Visa_status")
+DT3[, (cols_a_remover) := NULL]
+}
+
+contains_any_na = sapply(DT3, function(x) any(is.na(x)))
+cols_con_na = names(DT3)[contains_any_na]
+DT3[, (cols_con_na) := NULL]
+
+nombres_cols = colnames(DT3)
+
+rm(cols_con_na, cols_a_remover)
+```
+
+```{r}
+contains_any_na = sapply(DT3, function(x) any(is.na(x)))
+names(DT3)[contains_any_na]
+rm(contains_any_na)
+```
+
+```{r}
+DTS = split(DT3, by="numero_de_cliente")
+for (dt in DTS)
+{
+  dt[ , numero_de_cliente := NULL ]
+}
+rm(dt)
+#rm(DT3)
+```
+
+```{r}
+cant_clusters = 7L
+mvc <- tsclust(DTS, k = cant_clusters, 
+               type="partitional", distance = "dtw_basic",
+               centroid="pam") # dba pam shape fcmdd sdtw_cent
+```
+
+```{r}
+table(mvc@cluster)
+```
+
+Agregar número de cluster a DT3a:
+```{r}
+num_clusters = mvc@cluster
+nombres_clusters = names(mvc@datalist) # names(num_clusters)
+mapeo_clusters = data.table(numero_de_cliente=as.integer(nombres_clusters),
+                            cluster=num_clusters)
+
+DT3a[mapeo_clusters, cluster := cluster, on="numero_de_cliente"]
+rm(mapeo_clusters, num_clusters, nombres_clusters)
+```
+
+```{r}
+table(DT3a$cluster)
+```
+
+Última filas del centroide de cada cluster:
+```{r}
+ultimas_filas = setNames(data.table(matrix(nrow=0, ncol=length(nombres_cols))), nombres_cols)
+ultimas_filas[, numero_de_cliente := NULL ]
+ultimas_filas[, cluster := NULL ]
+
+for (k in 1:cant_clusters)
+{
+  cent = attributes(mvc)[["centroids"]][[k]]
+  ultimaf = cent[nrow(cent), ]
+  ultimaf = split(unname(ultimaf), names(ultimaf))
+  ultimas_filas = rbind( ultimas_filas, ultimaf )
+}
+
+ultimas_filas
+```
+
+Medias de cada cluster:
+```{r}
+DTU = DT3a[ , lapply(.SD, median) , by=c("cluster"), .SDcols=sapply(DT3a, is.numeric) ]
+DTU[, c("numero_de_cliente", "foto_mes", "tiempo_baja"):=NULL]
+setorderv(DTU, cols=c("cluster"), order=c(1L))
+DTU
+```
+
+```{r}
+#cols_res = colnames(mvc@centroids[[1]])
+DTM = DT3a[ , lapply(.SD, median) , by=c("cluster", "tiempo_baja"), .SDcols=sapply(DT3a, is.numeric) ]
+setorderv(DTM, cols=c("tiempo_baja"), order=c(-1L))
+```
+
+
+Evolución de variable (icol) para medianas de cada cluster: 
+```{r, fig.width=10, fig.height=15}
+library(ggplot2)
+library(gridExtra)
+
+colnm = "mprestamos_personales"
+
+plots = list()
+for (iclust in 1:cant_clusters)
+{
+  a = DTM[cluster==iclust, colnm, with=FALSE]
+  #b = a[, colnm, with=FALSE]
+  a[, x := seq(1, nrow(a), by=1)]
+  
+  plots[[iclust]] <- ggplot(data=a, 
+         aes(x=.data[["x"]], y=.data[[colnm]], group=1)) +
+      geom_line(color="red") +
+      geom_point() +
+      ggtitle(paste0("Cluster ", iclust))
+}
+
+do.call(grid.arrange, c(plots, ncol=2) )
+rm(colnm, a, plots, iclust)
+```
+
+
+Evolución de variable (icol) para todos los centroides de cada cluster: 
+```{r, fig.width=10, fig.height=15}
+library(ggplot2)
+library(gridExtra)
+
+colnm = "mactivos_margen"
+
+plots = list()
+for (iclust in 1:cant_clusters)
+{
+  a = attributes(mvc)[["centroids"]][[iclust]]
+  a = data.table(a)
+  
+  b = a[, colnm, with=FALSE]
+  b[, x := seq(1, nrow(a), by=1)]
+  
+  plots[[iclust]] <- ggplot(data=b, 
+         aes(x=.data[["x"]], y=.data[[colnm]], group=1)) +
+      geom_line(color="red") +
+      geom_point() +
+      ggtitle(paste0("Cluster ", iclust))
+}
+
+do.call(grid.arrange, c(plots, ncol=2) )
+```
+
+
+Evolución de variable (icol) del centroide del cluster (iclust): 
+```{r}
+library(ggplot2)
+
+iclust = 5
+colnm = "mactivos_margen"
+
+a = attributes(mvc)[["centroids"]][[iclust]]
+a = data.table(a)
+
+b = a[, colnm, with=FALSE]
+b[, x := seq(1, nrow(a), by=1)]
+
+ggplot(data=b, 
+       aes(x=.data[["x"]], y=.data[[colnm]], group=1)) +
+    geom_line(color="red") +
+    geom_point() +
+    ggtitle(paste0("Cluster ", iclust))
+```
+
+```{r}
+#setwd("~/buckets/b1/")
+#dir.create("./exp/", showWarnings = FALSE)
+#dir.create(paste0("./exp/", PARAM$experimento, "/"), showWarnings = FALSE)
+#setwd(paste0("./exp/", PARAM$experimento, "/"))
+```
+
