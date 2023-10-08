@@ -17,11 +17,28 @@ set.seed(42)
 DT <- data.table(x = rnorm(10), y = rlnorm(10), z = runif(10), g = c("a", "b"), key = "g")
 DT
 ```
+
+```{r}
+cols_reemplazar_ceros = c("z", "y")
+for (col in cols_reemplazar_ceros){
+  DT[, (col) := fifelse( (g=="a") & (get(col) > 0.1),  
+                         0.5 * (shift(get(col), n=1L, fill=NA, type="lag") + shift(get(col), n=1L, fill=NA, type="lead")), 
+                                get(col))]
+}
+```
+
+```{r}
+DT
+```
+
+
+
 ```{r}
 DT[, paste0("ravg_", c("x", "y")) := lapply(.SD, rollmean, k = 3, na.pad = TRUE), 
    by = g, .SDcols = c("x", "y")]
 DT
 ```
+
 ```{r}
 DT <- data.table(ID=c('A', 'A', 'A', 'A', 'A', 'A', 'B', 'B', 'B', 'C', 'C', 'C')
                , value_type =c('type 1', 'type 1','type 2','type 1','type 2','type 2','type 1','type 1','type 2','type 1','type 1','type 1')

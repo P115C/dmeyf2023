@@ -1,7 +1,6 @@
 ```{r}
-# limpio la memoria
 rm(list = ls()) # remove all objects
-gc() # garbage collection
+gc()            # garbage collection
 
 require("data.table")
 require("rlist")
@@ -22,12 +21,14 @@ options(error = function() {
 })
 ```
 
+
+Parámetros:
 ```{r}
 # defino los parametros de la corrida, en una lista, la variable global  PARAM
 #  muy pronto esto se leera desde un archivo formato .yaml
 PARAM <- list()
 
-PARAM$experimento <- "HT5231" # "HT5230"
+PARAM$experimento <- "HT5232" # "HT5230"
 
 PARAM$input$dataset <- "./datasets/competencia_02.csv.gz"
 
@@ -57,6 +58,8 @@ hs <- makeParamSet(
 )
 ```
 
+
+Funciones:
 ```{r}
 # graba a un archivo los componentes de lista
 # para el primer registro, escribe antes los titulos
@@ -208,6 +211,8 @@ EstimarGanancia_lightgbm <- function(x) {
 }
 ```
 
+
+Carga datos:
 ```{r}
 # Aqui se debe poner la carpeta de la computadora local
 setwd("~/buckets/b1/") # Establezco el Working Directory
@@ -220,13 +225,84 @@ setorderv(dataset, cols=c("foto_mes"), order=c(1L))
 #dataset <- dataset[order(foto_mes),]
 ```
 
-Arreglar datos perdidos o nulos:
+
+Arreglar datos nulos en algunos meses:
 ```{r}
+cols_reemplazar_ceros = c("active_quarter", "internet", "mcuentas_saldo",
+                          "ctarjeta_debito_transacciones", "mautoservicio",
+                          "ctarjeta_visa_transacciones", "mtarjeta_visa_consumo",
+                          "ctarjeta_master_transacciones", "mtarjeta_master_consumo",
+                          "cextraccion_autoservicio", "mextraccion_autoservicio",
+                          "ccheques_depositados", "mcheques_depositados", "ccheques_emitidos",
+                          "mcheques_emitidos", "ccheques_depositados_rechazados",
+                          "mcheques_depositados_rechazados", "ccheques_emitidos_rechazados",
+                          "mcheques_emitidos_rechazados", "tcallcenter",
+                          "ccallcenter_transacciones", "thomebanking", "ccajas_transacciones",
+                          "ccajas_consultas", "ccajas_depositos", "ccajas_extracciones",
+                          "ccajas_otras", "catm_trx", "matm", "catm_trx_other", "matm_other",
+                          "tmobile_app", "cmobile_app_trx", )
+for (col in cols_reemplazar_ceros){
+  dataset[, (col) := fifelse( (foto_mes==202006) & (get(col) == 0),  
+                              0.5 * (shift(get(col), n=1L, fill=NA, type="lag") + shift(get(col), n=1L, fill=NA, type="lead")),
+                              get(col)), 
+                     by = numero_de_cliente]
+}
 
 
+cols_reemplazar_ceros = c("mrentabilidad", "mrentabilidad_annual", "mcomisiones",
+                          "mactivos_margen", "mpasivos_margen", "ccomisiones_otras",
+                          "mcomisiones_otras" )
+meses = c(201905, 201910, 202006)
+for (col in cols_reemplazar_ceros){
+  dataset[, (col) := fifelse( (foto_mes %in% meses) & (get(col) == 0),  
+                              0.5 * (shift(get(col), n=1L, fill=NA, type="lag") + 
+                                       shift(get(col), n=1L, fill=NA, type="lead")),
+                              get(col)), 
+                      by = numero_de_cliente]
+}
+
+
+cols_reemplazar_ceros = c("ctarjeta_visa_debitos_automaticos", "mttarjeta_visa_debitos_automaticos")
+for (col in cols_reemplazar_ceros){
+  dataset[, (col) := fifelse( (foto_mes==201904) & (get(col) == 0),  
+                              0.5 * (shift(get(col), n=1L, fill=NA, type="lag") + 
+                                       shift(get(col), n=1L, fill=NA, type="lead")),
+                              get(col)), 
+                     by = numero_de_cliente]
+}
+
+
+cols_reemplazar_ceros = c("chomebanking_transacciones")
+meses = c(201910, 202006)
+for (col in cols_reemplazar_ceros){
+  dataset[, (col) := fifelse( (foto_mes %in% meses) & (get(col) == 0),  
+                              0.5 * (shift(get(col), n=1L, fill=NA, type="lag") + 
+                                       shift(get(col), n=1L, fill=NA, type="lead")),
+                              get(col)), 
+                     by = numero_de_cliente]
+}
+
+rm(meses, cols_reemplazar_ceros)
 ```
 
 
+Llenar con ceros:
+```{r}
+cols_nans_con_ceros = c("mtarjeta_visa_descuentos", "mtarjeta_master_descuentos",
+                        "tmobile_app", "cmobile_app_trx")
+setnafill(dataset, type="const", fill=0, cols=cols_nans_con_ceros)
+
+rm(cols_nans_con_ceros)
+```
+
+
+Arreglar variables con valores no esperados:
+```{r}
+dataset[, internet := fifelse(internet > 1, 1, internet) ]
+```
+
+
+Diferencia de estampas por cliente:
 ```{r}
 # columna con diferencia de estampas por cliente
 dataset[, foto_mes_rang:= match(foto_mes, sort(unique(foto_mes))) ]
@@ -234,16 +310,138 @@ dataset[, foto_mes_rangdif := {
         c(NA, diff(foto_mes_rang, lag=1, differences=1))
     }, .(numero_de_cliente)]
 dataset[, foto_mes_rang := NULL]
+```
 
 
-# media en ventana, derivada, derivada2
+Juntar variables:
+```{r}
+dataset[, t_delinquency := fcase( Master_delinquency > 0, 1,
+                                  Visa_delinquency > 0, 1,
+                                  default = (Master_delinquency | Visa_delinquency) ) ]
+dataset[, c("Master_delinquency", "Visa_delinquency") := NULL]
+
+
+sumar_cols = c("_mfinanciacion_limite", "_msaldototal", "_msaldopesos", "_msaldodolares",
+               "_mconsumospesos", "_mconsumosdolares", "_mlimitecompra", "_madelantopesos",
+               "_madelantodolares", "_mpagado", "_mpagospesos", "_mpagosdolares",
+               "_mconsumototal", "_cconsumos", "_cadelantosefectivo", "_mpagominimo" )
+for (col in sumar_cols)
+{
+  col1 = paste0("t", col)
+  col2 = paste0("Visa", col)
+  col3 = paste0("Master", col)
+  
+  dataset[, (col1) := fcase( !is.na(get(col2)) & !is.na(get(col3)), get(col2) + get(col3),
+                             !is.na(get(col2)), get(col2),
+                             default = get(col3) ) ]
+  dataset[, (col2) := NULL]
+  dataset[, (col3) := NULL]
+}
+
+
+colnames(dataset)[colnames(dataset) == "mttarjeta_master_debitos_automaticos"] = "mtarjeta_master_debitos_automaticos"
+sumar_cols = c("ctarjeta_visa", "ctarjeta_visa_transacciones", "mtarjeta_visa_consumo",
+               "ctarjeta_visa_debitos_automaticos", "mtarjeta_visa_debitos_automaticos",
+               "ctarjeta_visa_descuentos", "mtarjeta_visa_descuentos")
+for (col in sumar_cols)
+{
+  col1 = gsub("visa", "t", col)
+  col2 = col
+  col3 = gsub("master", "t", col)
+  
+  dataset[, (col1) := fcase( !is.na(get(col2)) & !is.na(get(col3)), get(col2) + get(col3),
+                             !is.na(get(col2)), get(col2),
+                             default = get(col3) ) ]
+  dataset[, (col2) := NULL]
+  dataset[, (col3) := NULL]
+}
+
+rm(sumar_cols, col1, col2, col3)
+```
+
+
+Normalización por inflación:
+```{r}
+foto_mes = c(201901, 201902, 201903, 201904, 201905, 201906, 201907, 201908, 201909, 201910, 201911, 201912, 202001, 202002, 202003, 202004, 202005, 202006, 202007, 202008, 202009, 202010, 202011, 202012, 202101, 202102, 202103, 202104, 202105, 202106, 202107, 202108, 202109, 202110, 202111, 202112)
+
+ipc = c(189.6101, 196.7501, 205.9571, 213.0517, 219.5691, 225.537, 230.494, 239.6077, 253.7102, 262.0661, 273.2158, 283.4442, 289.8299, 295.666, 305.5515, 310.1243, 314.9087, 321.9738, 328.2014, 337.0632, 346.6207, 359.657, 371.0211, 385.8826, 401.5071, 415.8595, 435.8657, 453.6503, 468.725, 483.6049, 498.0987, 510.3942, 528.4968, 547.0802, 560.9184, 582.4575)
+ipc = ipc/100
+
+mapeo_ipc = data.table(foto_mes=foto_mes, ipc=ipc)
+#mapeo_ipc[, foto_mes := as.character(foto_mes)]
+rm(foto_mes, ipc)
+
+cols_pesos <- c("mcuentas_saldo", "mprestamos_personales", "mcuenta_corriente_adicional",
+                "mcuenta_corriente", "mactivos_margen", "mcaja_ahorro_adicional",
+                "mcaja_ahorro", "mcomisiones_mantenimiento", "mplazo_fijo_pesos",
+                "mpasivos_margen", "mcomisiones", "mcajeros_propios_descuentos",
+                "mtarjeta_visa_consumo", "mtarjeta_t_consumo", 
+                "mrentabilidad", "mpayroll", "mpayroll2",
+                "mrentabilidad_annual", "Visa_msaldopesos",
+                "Visa_msaldototal", "Visa_mpagominimo",
+                "mcomisiones_otras", "mextraccion_autoservicio",
+                "matm", "mtarjeta_master_consumo",
+                "Visa_mpagospesos", "mcaja_ahorro_dolares",
+                "mtransferencias_recibidas", "Master_msaldopesos",
+                "Master_msaldototal", "mtransferencias_emitidas",
+                "Master_mpagominimo", "Visa_mfinanciacion_limite",
+                "Visa_mlimitecompra", "Master_mpagosdolares",
+                "mcheques_emitidos_rechazados", "minversion1_pesos",
+                "minversion2", "mcheques_emitidos", "minversion1_dolares",
+                "mprestamos_prendarios", "Master_mconsumosdolares",
+                "Master_mpagospesos", "Master_msaldodolares",
+                "Visa_mpagosdolares", "mautoservicio",
+                "mprestamos_hipotecarios", "mplazo_fijo_dolares",
+                "mcuenta_debitos_automaticos", "mtarjeta_visa_debitos_automaticos",
+                "mttarjeta_master_debitos_automaticos",
+                "mtarjeta_master_debitos_automaticos",
+                "mpagodeservicios", "mpagomiscuentas",
+                "mtarjeta_visa_descuentos", "mtarjeta_master_descuentos",
+                "mforex_buy", "mforex_sell", "mcheques_depositados",
+                "mcheques_depositados_rechazados", "matm_other",
+                "Master_mfinanciacion_limite", "Master_mconsumospesos",
+                "Master_mlimitecompra", "Master_madelantopesos",
+                "Master_madelantodolares", "Master_mpagado",
+                "Master_mconsumototal", "Visa_msaldodolares",
+                "Visa_mconsumospesos", "Visa_mconsumosdolares",
+                "Visa_madelantopesos", "Visa_madelantodolares",
+                "Visa_mpagado", "Visa_mconsumototal")
+
+cols_pesos2 = c()
+for(col in cols_pesos)
+{
+  if (col %in% colnames(dataset)){
+    cols_pesos2 = c(cols_pesos2, col)
+  }
+  col1 = gsub("visa", "t", col)
+  if ((col1 != col) & (col1 %in% colnames(dataset)))
+  {
+    cols_pesos2 = c(cols_pesos2, col1)
+  }
+  col1 = gsub("Visa", "t", col)
+  if ((col1 != col) & (col1 %in% colnames(dataset)))
+  {
+    cols_pesos2 = c(cols_pesos2, col1)
+  }
+}
+cols_pesos2 = unique(cols_pesos2)
+rm(col_pesos)
+
+dataset[mapeo_ipc, (cols_pesos2) := (.SD) / ipc , 
+          on="foto_mes", .SDcols = (cols_pesos2)]
+
+rm(mapeo_ipc, col_pesos2)
+```
+
+
+Media en ventana, dif1, dif2:
+```{r}
 campos_media <- setdiff(
   colnames(dataset),
   c("foto_mes_rangdif",
     "clase_ternaria", "foto_mes", "numero_de_cliente", 
     "cliente_edad", "cliente_antiguedad", "ccuenta_corriente")
 )
-
 
 n <- 3L
 nuevas_cols = c()
@@ -291,62 +489,72 @@ for (i in 1:length(campos_media))
 
 #dataset[, (nuevas_cols2) := .SD - shift(.SD, n=1L, fill=NA, type="lag"), 
 #                        .SDcols = (nuevas_cols), by=numero_de_cliente] 
+```
 
+
+Normalización por rango:
+```{r}
 if (FALSE)
 {
-# normalización por rango:
-campos_nrm_rango <- c("mcuentas_saldo", "mprestamos_personales",
-                      "mcuenta_corriente", "mactivos_margen",
-                      "mcaja_ahorro", "mcomisiones_mantenimiento",
-                      "mpasivos_margen", "mcomisiones",
-                      "mtarjeta_visa_consumo",
-                      "mrentabilidad", "mpayroll",
-                      "mrentabilidad_annual", "Visa_msaldopesos",
-                      "Visa_msaldototal", "Visa_mpagominimo",
-                      "mcomisiones_otras", "mextraccion_autoservicio",
-                      "matm", "mtarjeta_master_consumo",
-                      "Visa_mpagospesos", "mcaja_ahorro_dolares",
-                      "mtransferencias_recibidas", "Master_msaldopesos",
-                      "Master_msaldototal", "mtransferencias_emitidas",
-                      "Master_mpagominimo", "Visa_mfinanciacion_limite",
-                      "Visa_mlimitecompra", "Master_mpagosdolares",
-                      "mcheques_emitidos_rechazados", "minversion1_pesos",
-                      "minversion2", "mcheques_emitidos", "minversion1_dolares",
-                      "mprestamos_prendarios", "Master_mconsumosdolares",
-                      "Master_mpagospesos", "Master_msaldodolares",
-                      "Visa_mpagosdolares", "mautoservicio",
-                      "mprestamos_hipotecarios", "mplazo_fijo_dolares",
-                      "mcuenta_debitos_automaticos", "mttarjeta_visa_debitos_automaticos",
-                      "mttarjeta_master_debitos_automaticos",
-                      "mpagodeservicios", "mpagomiscuentas",
-                      "mtarjeta_visa_descuentos", "mtarjeta_master_descuentos",
-                      "mforex_buy", "mforex_sell", "mcheques_depositados",
-                      "mcheques_depositados_rechazados", "matm_other",
-                      "Master_mfinanciacion_limite", "Master_mconsumospesos",
-                      "Master_mlimitecompra", "Master_madelantopesos",
-                      "Master_madelantodolares", "Master_mpagado",
-                      "Master_mconsumototal", "Visa_msaldodolares",
-                      "Visa_mconsumospesos", "Visa_mconsumosdolares",
-                      "Visa_madelantopesos", "Visa_madelantodolares",
-                      "Visa_mpagado", "Visa_mconsumototal")
-
-nuevas_cols = c()
-for(col in campos_nrm_rango)
-{
-  nuevas_cols = c(nuevas_cols, paste0(col, "_nrmr"))
-}
-dataset[, (nuevas_cols) := frank(.SD)/.N,
-                      .SDcols = (campos_nrm_rango), by=foto_mes]
-
-#for (i in 1:length(campos_nrm_rango))
-#{
-#  dataset[, (campos_nrm_rango[i]) := NULL ]
-#}
+  cols_nrm_rango2 <- c("ccomisiones_otras", "cpayroll_trx",
+                        "ccomisiones_mantenimiento", "cextraccion_autoservicio",
+                        "catm_trx", "ccajas_consultas",
+                        "ccallcenter_transacciones",
+                        "cprestamos_prendarios",
+                        "ctarjeta_debito_transacciones",
+                        "cprestamos_hipotecarios", "cplazo_fijo",
+                        "ccuenta_debitos_automaticos",
+                        "ctarjeta_visa_debitos_automaticos",
+                        "ctarjeta_master_debitos_automaticos",
+                        "cpagomiscuentas", "ccajeros_propios_descuentos",
+                        "ctarjeta_visa_descuentos", "ctarjeta_master_descuentos",
+                        "ccajas_depositos", "ccajas_otras",
+                        "catm_trx_other", 
+                        )
+  
+  cols_nrm_rango = c()
+  for(col in cols_nrm_rango2)
+  {
+    if (col %in% colnames(dataset)){
+      cols_nrm_rango = c(cols_nrm_rango, col)
+    }
+    col1 = gsub("visa", "t", col)
+    if ((col1 != col) & (col1 %in% colnames(dataset)))
+    {
+      cols_nrm_rango = c(cols_nrm_rango, col1)
+    }
+    col1 = gsub("Visa", "t", col)
+    if ((col1 != col) & (col1 %in% colnames(dataset)))
+    {
+      cols_nrm_rango = c(cols_nrm_rango, col1)
+    }
+  }
+  cols_nrm_rango = unique(cols_nrm_rango)
+  rm(cols_nrm_rango2)
+  
+  nuevas_cols = c()
+  for(col in cols_nrm_rango)
+  {
+    nuevas_cols = c(nuevas_cols, paste0(col, "_nrmr"))
+  }
+  dataset[, (nuevas_cols) := frank(.SD)/.N,
+          .SDcols = (cols_nrm_rango), by=foto_mes]
+  
+  if (TRUE) # remover cols originales
+  {
+    for(col in cols_nrm_rango)
+    {
+      dataset[, (col) := NULL ]
+    }
+  }
+  
+  rm(cols_nrm_rango)
 }
 
 ```
 
 
+Creación directorios:
 ```{r}
 # Aqui se debe poner la carpeta de la computadora local
 setwd("~/buckets/b1/") # Establezco el Working Directory
@@ -405,6 +613,8 @@ dtrain <- lgb.Dataset(
 
 ```
 
+
+Optimización hiperparámetros:
 ```{r}
 setwd("~/buckets/b1/")
 setwd(paste0("./exp/", PARAM$experimento, "/"))
