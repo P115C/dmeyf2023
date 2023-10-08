@@ -220,6 +220,13 @@ setorderv(dataset, cols=c("foto_mes"), order=c(1L))
 #dataset <- dataset[order(foto_mes),]
 ```
 
+Arreglar datos perdidos o nulos:
+```{r}
+
+
+```
+
+
 ```{r}
 # columna con diferencia de estampas por cliente
 dataset[, foto_mes_rang:= match(foto_mes, sort(unique(foto_mes))) ]
