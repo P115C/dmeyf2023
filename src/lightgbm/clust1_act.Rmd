@@ -1,0 +1,121 @@
+```{r}
+rm(list = ls())
+gc()
+
+require("data.table")
+require("rlist")
+require("dtwclust")
+```
+
+```{r}
+setwd("~/buckets/b1/")
+DT <- fread("./datasets/competencia_02.csv.gz")
+
+setorderv(DT, cols=c("foto_mes"), order=c(1L))
+```
+
+```{r}
+unique(DT[["foto_mes"]])
+```
+
+```{r}
+meses = c(202005, 202006, 202007, 202008, 202009, 202010, 202011, 202012, 
+          202101, 202102, 202103, 202104, 202105)
+
+DT2 = DT[(foto_mes %in% meses) & (clase_ternaria == "BAJA+2")]
+ids = unique(DT2[["numero_de_cliente"]])
+
+DT3 = DT[numero_de_cliente %in% ids]
+setorderv(DT3, cols=c("foto_mes"), order=c(1L))
+
+rm(DT, DT2, ids)
+```
+
+
+```{r}
+cols_a_remover = c("foto_mes", "clase_ternaria")
+DT3[, (cols_a_remover) := NULL]
+
+nombres_cols = colnames(DT3)
+```
+
+```{r}
+contains_any_na = sapply(DT3, function(x) any(is.na(x)))
+cols_con_na = names(DT3)[contains_any_na]
+DT3[, (cols_con_na) := NULL]
+
+nombres_cols = colnames(DT3)
+```
+
+```{r}
+contains_any_na = sapply(DT3, function(x) any(is.na(x)))
+names(DT3)[contains_any_na]
+```
+
+```{r}
+DTS = split(DT3, by="numero_de_cliente")
+for (dt in DTS)
+{
+  dt[ , numero_de_cliente := NULL ]
+}
+
+#rm(DT3)
+```
+
+```{r}
+mvc <- tsclust(DTS, k = 7L, distance = "dtw_basic", 
+               seed = 390, type="h")
+```
+
+Agregar número de cluster a DT3:
+```{r}
+clusters = attributes(mvc)[["cluster"]]
+for (id2 in names(clusters))
+{
+  DT3[numero_de_cliente == id2, cluster := clusters[[id2]]]
+}
+```
+
+Última filas del centroide de cada cluster:
+```{r}
+ultimas_filas = setNames(data.table(matrix(nrow=0, ncol=length(nombres_cols))), nombres_cols)
+ultimas_filas[, numero_de_cliente := NULL ]
+ultimas_filas[, cluster := NULL ]
+
+for (k in 1:7)
+{
+  cent = attributes(mvc)[["centroids"]][[k]]
+  ultimaf = cent[nrow(cent), ]
+  ultimaf = split(unname(ultimaf), names(ultimaf))
+  ultimas_filas = rbind( ultimas_filas, ultimaf )
+}
+
+ultimas_filas
+```
+
+Evolución de variable (icol) del centroide del cluster (iclust): 
+```{r}
+library(ggplot2)
+
+iclust = 6
+colnm = "ctrx_quarter"
+
+a = attributes(mvc)[["centroids"]][[iclust]]
+a = data.table(a)
+
+b = a[, colnm, with=FALSE]
+b[, x := seq(1, nrow(a), by=1)]
+
+ggplot(data=b, 
+       aes(x=.data[["x"]], y=.data[[colnm]], group=1)) +
+    geom_line(color="red") +
+    geom_point()
+```
+
+```{r}
+#setwd("~/buckets/b1/")
+#dir.create("./exp/", showWarnings = FALSE)
+#dir.create(paste0("./exp/", PARAM$experimento, "/"), showWarnings = FALSE)
+#setwd(paste0("./exp/", PARAM$experimento, "/"))
+```
+

@@ -1,0 +1,155 @@
+```{r}
+rm(list = ls())
+gc()
+
+require("data.table")
+require("rlist")
+require("randomForest")
+```
+
+```{r}
+setwd("~/buckets/b1/")
+DT <- fread("./datasets/competencia_02.csv.gz")
+
+setorderv(DT, cols=c("foto_mes"), order=c(1L))
+```
+
+```{r}
+unique(DT[["foto_mes"]])
+```
+
+```{r}
+#meses = c(201908, 201909 ,201910, 201911, 201912, 202001, 202002, 202003 ,202004 ,202005,
+#          202006, 202007, 202008 ,202009 ,202010, 202011 ,202012 ,202101 ,202102, 202103 ,202104 ,202105)
+
+meses = c(202008 ,202009 ,202010, 202011 ,202012 ,202101 ,202102, 202103 ,202104 ,202105)
+
+DT2 = DT[(foto_mes %in% meses) & (clase_ternaria == "BAJA+2")]
+ids = unique(DT2[["numero_de_cliente"]])
+
+DT3 = DT[numero_de_cliente %in% ids]
+setorderv(DT3, cols=c("foto_mes"), order=c(1L))
+
+rm(ids)
+```
+
+```{r}
+DT20 = copy(DT2)
+
+cols_a_remover = c("foto_mes", "clase_ternaria", "numero_de_cliente")
+DT2[, (cols_a_remover) := NULL]
+
+if (FALSE)
+{
+cols_a_remover = c("active_quarter", "cliente_vip", "internet",
+                   "cliente_edad", "cliente_antiguedad",
+                   "mrentabilidad_annual", "cproductos",
+                   "tcuentas", "ccuenta_corriente",
+                   "ccaja_ahorro", "ctarjeta_debito", "cdescubierto_preacordado",
+                   "ctarjeta_debito_transacciones", "ctarjeta_visa_transacciones",
+                   "ctarjeta_master_transacciones",
+                   "cprestamos_personales", "cprestamos_prendarios", 
+                   "cprestamos_hipotecarios", "cplazo_fijo",
+                   "cinversion1", "cinversion2", "cseguro_vida",
+                   "cpayroll_trx", "cpayroll2_trx", "ccuenta_debitos_automaticos",
+                   "ctarjeta_visa_debitos_automaticos", "ctarjeta_master_debitos_automaticos",
+                   "cpagodeservicios", "cpagomiscuentas", "ccajeros_propios_descuentos",
+                   "ctarjeta_visa_descuentos", "ctarjeta_master_descuentos",
+                   "ccomisiones_mantenimiento", "ccomisiones_otras", "cforex",
+                   "cforex_buy", "cforex_sell", "ctransferencias_recibidas",
+                   "ctransferencias_emitidas", "cextraccion_autoservicio",
+                   "ccheques_depositados", "ccheques_emitidos",
+                   "ccheques_depositados_rechazados", "ccheques_emitidos_rechazados",
+                   "ccallcenter_transacciones",
+                   "ccajas_transacciones", "ccajas_consultas",
+                   "ccajas_depositos", "ccajas_extracciones",
+                   "ccajas_otras", "catm_trx", "catm_trx_other",
+                   "cmobile_app_trx",
+                   "ctarjeta_visa", "ctarjeta_master",
+                   "cseguro_auto", "cseguro_vivienda", "cseguro_accidentes_personales",
+                   "ccaja_seguridad", "tcallcenter", "thomebanking",
+                   "tmobile_app", "Master_delinquency",
+                   "Master_status", "Visa_delinquency",
+                   "Visa_status")
+DT2[, (cols_a_remover) := NULL]
+}
+
+contains_any_na = sapply(DT2, function(x) any(is.na(x)))
+cols_con_na = names(DT2)[contains_any_na]
+DT2[, (cols_con_na) := NULL]
+
+nombres_cols_dt2 = colnames(DT2) 
+```
+
+```{r}
+cant_arboles = 300
+
+rf = randomForest::randomForest(x = DT2, ntree = cant_arboles, 
+                                proximity = TRUE,
+                                type="unsupervised",
+                                na.action=na.omit)
+```
+
+```{r}
+dissimilarity = as.dist(1-rf$proximity)
+hc_avg = hclust(dissimilarity, method = "average")
+```
+
+```{r}
+corte_avg <- cutree(hc_avg, k = 7)
+```
+
+```{r}
+table(corte_avg)
+```
+
+
+```{r}
+DT20[ , cluster := corte_avg]
+```
+
+```{r}
+table(DT20$cluster)
+```
+
+```{r}
+DTU = DT20[ , lapply(.SD, median) , by=c("cluster"), .SDcols=(nombres_cols_dt2) ]
+mapeo_clusters = DT20[, c("numero_de_cliente", "cluster")]
+```
+
+```{r}
+DTU
+```
+
+
+```{r}
+DT3[mapeo_clusters, cluster := cluster, on="numero_de_cliente"]
+```
+
+```{r}
+DTM = DT3[ , lapply(.SD, median) , by=c("cluster", "foto_mes"), .SDcols=sapply(DT3, is.numeric) ]
+```
+
+Evolución de variable (icol) para medianas de cada cluster: 
+```{r, fig.width=10, fig.height=15}
+library(ggplot2)
+library(gridExtra)
+
+colnm = "mactivos_margen"
+
+plots = list()
+for (iclust in 1:7)
+{
+  a = DTM[cluster == iclust,]
+  b = a[, colnm, with=FALSE]
+  b[, x := seq(1, nrow(a), by=1)]
+  
+  plots[[iclust]] <- ggplot(data=b, 
+         aes(x=.data[["x"]], y=.data[[colnm]], group=1)) +
+      geom_line(color="red") +
+      geom_point() +
+      ggtitle(paste0("Cluster ", iclust))
+}
+
+do.call(grid.arrange, c(plots, ncol=2) )
+```

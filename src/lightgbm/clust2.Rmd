@@ -19,49 +19,51 @@ unique(DT[["foto_mes"]])
 ```
 
 ```{r}
-meses0 = c(202008 ,202009 ,202010, 202011 ,202012 ,202101 ,202102, 202103 ,202104 ,202105)
+meses0 = c(202005, 202006, 202007, 202008, 202009 ,202010, 202011, 202012,
+           202101 ,202102, 202103 ,202104 ,202105)
 
 DT2 = DT[(foto_mes %in% meses0) & (clase_ternaria == "BAJA+1"),]
 ids = unique(DT2[["numero_de_cliente"]])
 
-#mapeo_baja = DT2[, c("numero_de_cliente", "foto_mes")]
+mapeo_baja = DT2[, c("numero_de_cliente", "foto_mes")]
+colnames(mapeo_baja)[colnames(mapeo_baja) == "foto_mes"] = "mes_baja"
 
 DT3 = DT[numero_de_cliente %in% ids]
-#DT3[mapeo_baja, mes_baja := foto_mes, on="numero_de_cliente"]
+DT3[mapeo_baja, mes_baja := mes_baja, on="numero_de_cliente"]
+DT3[, tiempo_baja :=  (mes_baja - foto_mes)]
+DT3[, mes_baja := NULL]
+DT3 = DT3[tiempo_baja >= 0, ]
+setorderv(DT3, cols=c("tiempo_baja"), order=c(-1L))
+
+DT3a = copy(DT3)
 
 #meses = c(201908, 201909 ,201910, 201911, 201912, 202001, 202002, 202003 ,202004 ,202005,
 #          202006, 202007, 202008 ,202009 ,202010, 202011 ,202012 ,202101 ,202102, 202103 ,202104 ,202105)
-#DT3[foto_mes %in% meses0]
+#DT3[foto_mes %in% meses]
 
-setorderv(DT3, cols=c("foto_mes"), order=c(1L))
-
-rm(DT2, ids, mapeo_baja)
+rm(DT2, ids, mapeo_baja, meses0)
 #rm(DT)
 ```
 
 
 ```{r}
-DT3a = copy(DT3)
+#table(DT3$tiempo_baja)
+```
 
-cols_a_remover = c("foto_mes", "clase_ternaria", 
-                   "cliente_vip", "active_quarter", "internet",
-                   "tcuentas", "ccuenta_corriente" )
+
+```{r}
+cols_a_remover = c("tiempo_baja", "foto_mes", "clase_ternaria")
 DT3[, (cols_a_remover) := NULL]
 
-cols_a_remover = c("cliente_vip", "active_quarter", "internet",
-                   "tcuentas", "ccuenta_corriente", "cdescubierto_preacordado",
-                   "ctarjeta_visa", "ctarjeta_master",
-                   "cseguro_auto", "cseguro_vivienda", "cseguro_accidentes_personales",
-                   "ccaja_seguridad", "tcallcenter", "thomebanking",
-                   "tmobile_app", "Master_delinquency",
-                   "Master_status", "Visa_delinquency",
-                   "Visa_status",
+if (FALSE) 
+{
+cols_a_remover = c("active_quarter", "cliente_vip", "internet",
                    "cliente_edad", "cliente_antiguedad",
                    "mrentabilidad_annual", "cproductos",
-                   "mcuenta_corriente_adicional", "ccaja_ahorro",
-                   "mcaja_ahorro_adicional", "ctarjeta_debito",
+                   "tcuentas", "ccuenta_corriente",
+                   "ccaja_ahorro", "ctarjeta_debito", "cdescubierto_preacordado",
                    "ctarjeta_debito_transacciones", "ctarjeta_visa_transacciones",
-                   "ctarjeta_master_transacciones", "mtarjeta_master_consumo",
+                   "ctarjeta_master_transacciones",
                    "cprestamos_personales", "cprestamos_prendarios", 
                    "cprestamos_hipotecarios", "cplazo_fijo",
                    "cinversion1", "cinversion2", "cseguro_vida",
@@ -78,20 +80,29 @@ cols_a_remover = c("cliente_vip", "active_quarter", "internet",
                    "ccajas_transacciones", "ccajas_consultas",
                    "ccajas_depositos", "ccajas_extracciones",
                    "ccajas_otras", "catm_trx", "catm_trx_other",
-                   "cmobile_app_trx"
-                   )
+                   "cmobile_app_trx",
+                   "ctarjeta_visa", "ctarjeta_master",
+                   "cseguro_auto", "cseguro_vivienda", "cseguro_accidentes_personales",
+                   "ccaja_seguridad", "tcallcenter", "thomebanking",
+                   "tmobile_app", "Master_delinquency",
+                   "Master_status", "Visa_delinquency",
+                   "Visa_status")
 DT3[, (cols_a_remover) := NULL]
+}
 
 contains_any_na = sapply(DT3, function(x) any(is.na(x)))
 cols_con_na = names(DT3)[contains_any_na]
 DT3[, (cols_con_na) := NULL]
 
 nombres_cols = colnames(DT3)
+
+rm(cols_con_na, cols_a_remover)
 ```
 
 ```{r}
 contains_any_na = sapply(DT3, function(x) any(is.na(x)))
 names(DT3)[contains_any_na]
+rm(contains_any_na)
 ```
 
 ```{r}
@@ -100,18 +111,19 @@ for (dt in DTS)
 {
   dt[ , numero_de_cliente := NULL ]
 }
-
+rm(dt)
 #rm(DT3)
 ```
 
 ```{r}
-mvc <- tsclust(DTS, k = 7L, 
-               #type = "partitional", preproc = zscore, distance = "sbd", centroid = "shape")
-               type="partitional", distance = "dtw_basic" )
+cant_clusters = 7L
+mvc <- tsclust(DTS, k = cant_clusters, 
+               type="partitional", distance = "dtw_basic",
+               centroid="pam") # dba pam shape fcmdd sdtw_cent
 ```
 
 ```{r}
-table(attributes(mvc)[["cluster"]])
+table(mvc@cluster)
 ```
 
 Agregar número de cluster a DT3a:
@@ -122,7 +134,7 @@ mapeo_clusters = data.table(numero_de_cliente=as.integer(nombres_clusters),
                             cluster=num_clusters)
 
 DT3a[mapeo_clusters, cluster := cluster, on="numero_de_cliente"]
-#rm(mapeo_clusters, num_clusters, nombres_clusters)
+rm(mapeo_clusters, num_clusters, nombres_clusters)
 ```
 
 ```{r}
@@ -135,7 +147,7 @@ ultimas_filas = setNames(data.table(matrix(nrow=0, ncol=length(nombres_cols))), 
 ultimas_filas[, numero_de_cliente := NULL ]
 ultimas_filas[, cluster := NULL ]
 
-for (k in 1:7)
+for (k in 1:cant_clusters)
 {
   cent = attributes(mvc)[["centroids"]][[k]]
   ultimaf = cent[nrow(cent), ]
@@ -149,14 +161,15 @@ ultimas_filas
 Medias de cada cluster:
 ```{r}
 DTU = DT3a[ , lapply(.SD, median) , by=c("cluster"), .SDcols=sapply(DT3a, is.numeric) ]
-DTU[, c("numero_de_cliente", "foto_mes"):=NULL]
+DTU[, c("numero_de_cliente", "foto_mes", "tiempo_baja"):=NULL]
 setorderv(DTU, cols=c("cluster"), order=c(1L))
 DTU
 ```
 
 ```{r}
-cols_res = colnames(mvc@centroids[[1]])
-DTM = DT3a[ , lapply(.SD, median) , by=c("cluster", "foto_mes"), .SDcols=sapply(DT3a, is.numeric) ]
+#cols_res = colnames(mvc@centroids[[1]])
+DTM = DT3a[ , lapply(.SD, median) , by=c("cluster", "tiempo_baja"), .SDcols=sapply(DT3a, is.numeric) ]
+setorderv(DTM, cols=c("tiempo_baja"), order=c(-1L))
 ```
 
 
@@ -165,17 +178,16 @@ Evolución de variable (icol) para medianas de cada cluster:
 library(ggplot2)
 library(gridExtra)
 
-colnm = "mcomisiones"
+colnm = "mprestamos_personales"
 
 plots = list()
-for (iclust in 1:7)
+for (iclust in 1:cant_clusters)
 {
-  a = DTM[cluster==iclust,]
+  a = DTM[cluster==iclust, colnm, with=FALSE]
+  #b = a[, colnm, with=FALSE]
+  a[, x := seq(1, nrow(a), by=1)]
   
-  b = a[, colnm, with=FALSE]
-  b[, x := seq(1, nrow(a), by=1)]
-  
-  plots[[iclust]] <- ggplot(data=b, 
+  plots[[iclust]] <- ggplot(data=a, 
          aes(x=.data[["x"]], y=.data[[colnm]], group=1)) +
       geom_line(color="red") +
       geom_point() +
@@ -183,6 +195,7 @@ for (iclust in 1:7)
 }
 
 do.call(grid.arrange, c(plots, ncol=2) )
+rm(colnm, a, plots, iclust)
 ```
 
 
@@ -194,7 +207,7 @@ library(gridExtra)
 colnm = "mactivos_margen"
 
 plots = list()
-for (iclust in 1:7)
+for (iclust in 1:cant_clusters)
 {
   a = attributes(mvc)[["centroids"]][[iclust]]
   a = data.table(a)

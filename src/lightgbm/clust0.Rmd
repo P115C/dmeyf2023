@@ -12,10 +12,30 @@ DT <- data.table(ID=c('A', 'A', 'A', 'A', 'A', 'A', 'B', 'B', 'B', 'C', 'C', 'C'
                , mes =c('202001','202002','202003','201912','202005', '202006',
                                '202001','202005','202003',
                                '202003','202001','202002')
-               , value1=c(1,4,7,2,3,5,1,6,8,2,2,3) )
-DT[, value2 := value1 + 100]
+               , value1=c(1,4,7,NaN,3,5,1,6,8,2,2,3) )
+DT[, value2 := ifelse(is.nan(value1), 0, value1) + 100]
 DT
 ```
+
+```{r}
+num_clusters = c(1,2,3)
+nombres_clusters = c("A", "B", "C")
+mapeo_clusters = data.table(ID=nombres_clusters, cluster=num_clusters)
+
+DT[mapeo_clusters, cluster := cluster, on="ID"]
+```
+
+```{r}
+DT
+```
+
+
+
+```{r}
+DT[ , lapply(.SD, mean) , by=c("ID"), .SDcols=sapply(DT, is.numeric)]
+```
+
+
 
 ```{r}
 dcast(DT, ID ~ mes,
@@ -27,9 +47,13 @@ dcast(DT, ID ~ mes,
 ```{r}
 r = split(DT, by="ID")
 
-for (dt in r)
+for (i in 1:length(r))
 {
+  dt = r[[i]]
   dt[ , ID := NULL ]
+  #setnafill(r[[i]], "locf", cols= c('value1', 'value2'))
+  #setnafill(r[[i]], "nocb", cols= c('value1', 'value2'))
+  r[[i]] = na.omit(r[[i]])
 }
 r
 ```
