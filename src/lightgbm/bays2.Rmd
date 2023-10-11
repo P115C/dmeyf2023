@@ -38,7 +38,7 @@ PARAM$input$validation <- c(202104)
 PARAM$input$training <- c(202010, 202011, 202012, 202101, 202102, 202103)
 
 # un undersampling de 0.1  toma solo el 10% de los CONTINUA
-PARAM$trainingstrategy$undersampling <- 1.0
+PARAM$trainingstrategy$undersampling <- 0.5
 PARAM$trainingstrategy$semilla_azar <- 886609 # Aqui poner su  primer  semilla
 
 PARAM$hyperparametertuning$POS_ganancia <- 273000
@@ -86,9 +86,9 @@ PARAM$lgb_basicos <- list(
 #  en la Bayesian Optimization
 PARAM$bo_lgb <- makeParamSet(
   makeNumericParam("learning_rate", lower = 0.02, upper = 0.3),
-  makeNumericParam("feature_fraction", lower = 0.01, upper = 1.0),
-  makeIntegerParam("num_leaves", lower = 8L, upper = 1024L),
-  makeIntegerParam("min_data_in_leaf", lower = 100L, upper = 50000L)
+  makeNumericParam("feature_fraction", lower = 0.05, upper = 1.0),
+  makeIntegerParam("num_leaves", lower = 100L, upper = 1024L),
+  makeIntegerParam("min_data_in_leaf", lower = 1000L, upper = 50000L)
 )
 
 # si usted es ambicioso, y tiene paciencia, podria subir este valor a 100
@@ -295,6 +295,8 @@ setorderv(dataset, cols=c("foto_mes"), order=c(1L))
 
 Arreglar datos nulos en algunos meses:
 ```{r}
+reemplazar_con_na = TRUE
+
 cols_reemplazar_ceros = c("active_quarter", "internet", "mcuentas_saldo",
                           "ctarjeta_debito_transacciones", "mautoservicio",
                           "ctarjeta_visa_transacciones", "mtarjeta_visa_consumo",
@@ -307,12 +309,17 @@ cols_reemplazar_ceros = c("active_quarter", "internet", "mcuentas_saldo",
                           "ccallcenter_transacciones", "thomebanking", "ccajas_transacciones",
                           "ccajas_consultas", "ccajas_depositos", "ccajas_extracciones",
                           "ccajas_otras", "catm_trx", "matm", "catm_trx_other", "matm_other",
-                          "tmobile_app", "cmobile_app_trx", )
+                          "tmobile_app", "cmobile_app_trx")
 for (col in cols_reemplazar_ceros){
-  dataset[, (col) := fifelse( (foto_mes==202006) & (get(col) == 0),  
+  if (reemplazar_con_na){
+    dataset[foto_mes==202006, (col) := NA]
+  }
+  else{
+    dataset[, (col) := fifelse( (foto_mes==202006) & (get(col) == 0),  
                               0.5 * (shift(get(col), n=1L, fill=NA, type="lag") + shift(get(col), n=1L, fill=NA, type="lead")),
                               get(col)), 
                      by = numero_de_cliente]
+  }
 }
 
 
@@ -321,32 +328,47 @@ cols_reemplazar_ceros = c("mrentabilidad", "mrentabilidad_annual", "mcomisiones"
                           "mcomisiones_otras" )
 meses = c(201905, 201910, 202006)
 for (col in cols_reemplazar_ceros){
-  dataset[, (col) := fifelse( (foto_mes %in% meses) & (get(col) == 0),  
+    if (reemplazar_con_na){
+    dataset[foto_mes %in% meses, (col) := NA]
+  }
+  else{
+    dataset[, (col) := fifelse( (foto_mes %in% meses) & (get(col) == 0),  
                               0.5 * (shift(get(col), n=1L, fill=NA, type="lag") + 
                                        shift(get(col), n=1L, fill=NA, type="lead")),
                               get(col)), 
                       by = numero_de_cliente]
+  }
 }
 
 
 cols_reemplazar_ceros = c("ctarjeta_visa_debitos_automaticos", "mttarjeta_visa_debitos_automaticos")
 for (col in cols_reemplazar_ceros){
-  dataset[, (col) := fifelse( (foto_mes==201904) & (get(col) == 0),  
+  if (reemplazar_con_na){
+    dataset[foto_mes==201904, (col) := NA]
+  }
+  else{
+    dataset[, (col) := fifelse( (foto_mes==201904) & (get(col) == 0),  
                               0.5 * (shift(get(col), n=1L, fill=NA, type="lag") + 
                                        shift(get(col), n=1L, fill=NA, type="lead")),
                               get(col)), 
                      by = numero_de_cliente]
+  }
 }
 
 
 cols_reemplazar_ceros = c("chomebanking_transacciones")
 meses = c(201910, 202006)
 for (col in cols_reemplazar_ceros){
-  dataset[, (col) := fifelse( (foto_mes %in% meses) & (get(col) == 0),  
+  if (reemplazar_con_na){
+    dataset[foto_mes %in% meses, (col) := NA]
+  }
+  else{
+    dataset[, (col) := fifelse( (foto_mes %in% meses) & (get(col) == 0),  
                               0.5 * (shift(get(col), n=1L, fill=NA, type="lag") + 
                                        shift(get(col), n=1L, fill=NA, type="lead")),
                               get(col)), 
                      by = numero_de_cliente]
+  }
 }
 
 rm(meses, cols_reemplazar_ceros)
@@ -384,7 +406,9 @@ Juntar variables:
 ```{r}
 dataset[, t_delinquency := fcase( Master_delinquency > 0, 1,
                                   Visa_delinquency > 0, 1,
-                                  default = (Master_delinquency | Visa_delinquency) ) ]
+                                  Visa_delinquency == 0, 0,
+                                  Master_delinquency == 0, 0,
+                                  default = NA ) ]
 dataset[, c("Master_delinquency", "Visa_delinquency") := NULL]
 
 
@@ -400,25 +424,25 @@ for (col in sumar_cols)
   
   dataset[, (col1) := fcase( !is.na(get(col2)) & !is.na(get(col3)), get(col2) + get(col3),
                              !is.na(get(col2)), get(col2),
-                             default = get(col3) ) ]
+                             !is.na(get(col3)), get(col3),
+                             default = NA ) ]
   dataset[, (col2) := NULL]
   dataset[, (col3) := NULL]
 }
 
-
-colnames(dataset)[colnames(dataset) == "mttarjeta_master_debitos_automaticos"] = "mtarjeta_master_debitos_automaticos"
 sumar_cols = c("ctarjeta_visa", "ctarjeta_visa_transacciones", "mtarjeta_visa_consumo",
-               "ctarjeta_visa_debitos_automaticos", "mtarjeta_visa_debitos_automaticos",
+               "ctarjeta_visa_debitos_automaticos", "mttarjeta_visa_debitos_automaticos",
                "ctarjeta_visa_descuentos", "mtarjeta_visa_descuentos")
 for (col in sumar_cols)
 {
   col1 = gsub("visa", "t", col)
   col2 = col
-  col3 = gsub("master", "t", col)
+  col3 = gsub("visa", "master", col)
   
   dataset[, (col1) := fcase( !is.na(get(col2)) & !is.na(get(col3)), get(col2) + get(col3),
                              !is.na(get(col2)), get(col2),
-                             default = get(col3) ) ]
+                             !is.na(get(col3)), get(col3),
+                             default = NA ) ]
   dataset[, (col2) := NULL]
   dataset[, (col3) := NULL]
 }
@@ -459,9 +483,8 @@ cols_pesos <- c("mcuentas_saldo", "mprestamos_personales", "mcuenta_corriente_ad
                 "Master_mpagospesos", "Master_msaldodolares",
                 "Visa_mpagosdolares", "mautoservicio",
                 "mprestamos_hipotecarios", "mplazo_fijo_dolares",
-                "mcuenta_debitos_automaticos", "mtarjeta_visa_debitos_automaticos",
+                "mcuenta_debitos_automaticos", "mttarjeta_visa_debitos_automaticos",
                 "mttarjeta_master_debitos_automaticos",
-                "mtarjeta_master_debitos_automaticos",
                 "mpagodeservicios", "mpagomiscuentas",
                 "mtarjeta_visa_descuentos", "mtarjeta_master_descuentos",
                 "mforex_buy", "mforex_sell", "mcheques_depositados",
@@ -492,12 +515,12 @@ for(col in cols_pesos)
   }
 }
 cols_pesos2 = unique(cols_pesos2)
-rm(col_pesos)
+rm(cols_pesos)
 
 dataset[mapeo_ipc, (cols_pesos2) := (.SD) / ipc , 
           on="foto_mes", .SDcols = (cols_pesos2)]
 
-rm(mapeo_ipc, col_pesos2)
+rm(mapeo_ipc, cols_pesos2, col1)
 ```
 
 
@@ -510,6 +533,7 @@ campos_media <- setdiff(
     "cliente_edad", "cliente_antiguedad", "ccuenta_corriente")
 )
 
+#----- media
 n <- 3L
 nuevas_cols = c()
 for(col in campos_media)
@@ -523,6 +547,27 @@ dataset[, (nuevas_cols) := frollmean(.SD, n=(n), fill=NA, align="right", algo="f
 dataset[, (nuevas_cols) := shift(.SD, n=1L, fill=NA, type="lag"),
                       .SDcols = (nuevas_cols), by=numero_de_cliente] 
 
+#----- lag2
+nuevas_cols = c()
+for(col in campos_media)
+{
+  nuevas_cols = c(nuevas_cols, paste0(col, "lag2"))
+}
+
+dataset[, (nuevas_cols) := shift(.SD, n=2L, fill=NA, type="lag"), 
+                        .SDcols = (campos_media), by=numero_de_cliente]
+
+#----- lag3
+nuevas_cols = c()
+for(col in campos_media)
+{
+  nuevas_cols = c(nuevas_cols, paste0(col, "lag3"))
+}
+
+dataset[, (nuevas_cols) := shift(.SD, n=3L, fill=NA, type="lag"), 
+                        .SDcols = (campos_media), by=numero_de_cliente]
+
+#----- dif1
 nuevas_cols = c()
 for(col in campos_media)
 {
@@ -540,6 +585,7 @@ for (i in 1:length(campos_media))
 #dataset[, (nuevas_cols) := .SD - shift(.SD, n=1L, fill=NA, type="lag"), 
 #                        .SDcols = (campos_media), by=numero_de_cliente] 
 
+#----- dif2
 nuevas_cols2 = c()
 for (col in campos_media)
 {
@@ -556,6 +602,8 @@ for (i in 1:length(campos_media))
 
 #dataset[, (nuevas_cols2) := .SD - shift(.SD, n=1L, fill=NA, type="lag"), 
 #                        .SDcols = (nuevas_cols), by=numero_de_cliente] 
+
+rm(campos_media, nuevas_cols2, nuevas_cols)
 ```
 
 
@@ -576,7 +624,7 @@ if (FALSE)
                         "cpagomiscuentas", "ccajeros_propios_descuentos",
                         "ctarjeta_visa_descuentos", "ctarjeta_master_descuentos",
                         "ccajas_depositos", "ccajas_otras",
-                        "catm_trx_other", 
+                        "catm_trx_other"
                         )
   
   cols_nrm_rango = c()
