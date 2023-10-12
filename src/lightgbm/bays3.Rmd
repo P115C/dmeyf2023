@@ -27,7 +27,7 @@ Parámetros:
 #  muy pronto esto se leera desde un archivo formato .yaml
 PARAM <- list()
 
-PARAM$experimento <- "HT8232"
+PARAM$experimento <- "HT8235"
 
 PARAM$input$dataset <- "./datasets/competencia_02.csv.gz"
 
@@ -92,10 +92,10 @@ PARAM$lgb_basicos <- list(
 # Aqui se cargan los hiperparametros que se optimizan
 #  en la Bayesian Optimization
 PARAM$bo_lgb <- makeParamSet(
-  makeNumericParam("learning_rate", lower = 0.02, upper = 0.3),
-  makeNumericParam("feature_fraction", lower = 0.05, upper = 1.0),
-  makeIntegerParam("num_leaves", lower = 100L, upper = 1024L),
-  makeIntegerParam("min_data_in_leaf", lower = 1000L, upper = 50000L)
+  makeNumericParam("learning_rate", lower = 0.02, upper = 0.1),
+  makeNumericParam("feature_fraction", lower = 0.2, upper = 1.0),
+  makeIntegerParam("num_leaves", lower = 300L, upper = 2048L),
+  makeIntegerParam("min_data_in_leaf", lower = 5000L, upper = 50000L)
 )
 
 # si usted es ambicioso, y tiene paciencia, podria subir este valor a 100
