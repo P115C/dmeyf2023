@@ -40,12 +40,24 @@ colnames(mapeo_baja)[colnames(mapeo_baja) == "foto_mes"] = "foto_mes_baja2"
 DT_bajas_hist[mapeo_baja, foto_mes_baja2 := foto_mes_baja2, on="numero_de_cliente"]
 DT_bajas_hist[, t_hasta_baja :=  (foto_mes_baja2 - foto_mes)]
 DT_bajas_hist[, foto_mes_baja2 := NULL]
-setorderv(DT_bajas_hist, cols=c("foto_mes_baja2"), order=c(-1L))
+setorderv(DT_bajas_hist, cols=c("t_hasta_baja"), order=c(-1L))
 
-DT_bajas_hist[ , t_hasta_baja := frankv(t_hasta_baja, order=-1L), 
+DT_bajas_hist[ , t_hasta_baja := frankv(t_hasta_baja, order=1L), 
                by=numero_de_cliente]
 
 rm(mapeo_baja)
+```
+
+
+Ejemplo "t_hasta_baja":
+```{r}
+DT_bajas[numero_de_cliente == 29677433, 
+                c("numero_de_cliente", "foto_mes")]
+```
+
+```{r}
+DT_bajas_hist[numero_de_cliente == 29677433, 
+                c("numero_de_cliente", "foto_mes", "t_hasta_baja")]
 ```
 
 
@@ -54,6 +66,7 @@ Crear DT_bajas_arb:
 DT_bajas_arb = copy(DT_bajas)
 cols_a_remover = c("foto_mes", "clase_ternaria", "numero_de_cliente")
 DT_bajas_arb[, (cols_a_remover) := NULL]
+rm(cols_a_remover)
 
 if (FALSE)
 {
@@ -88,6 +101,7 @@ if (FALSE)
                      "Master_status", "Visa_delinquency",
                      "Visa_status")
   DT_bajas_arb[, (cols_a_remover) := NULL]
+  rm(cols_a_remover)
 }
 
 
@@ -97,10 +111,10 @@ if (FALSE)  # eliminar NA
   cols_con_na = names(DT2)[contains_any_na]
   DT2[, (cols_con_na) := NULL]
 } else {  # llenar NA
-  na.roughfix(DT_bajas_arb)
+  DT_bajas_arb = na.roughfix(DT_bajas_arb)
 }
-
 ```
+
 
 ```{r}
 rf = randomForest::randomForest(x = DT_bajas_arb, y = NULL, 
@@ -125,13 +139,40 @@ table(rf_hc_corte)
 ```
 
 ```{r}
-DT_bajas_hist[ , cluster := rf_hc_corte]
+DT_bajas[ , cluster := rf_hc_corte]
+mapeo_baja = DT_bajas[, c("numero_de_cliente", "cluster")]
+DT_bajas_hist[mapeo_baja, cluster := cluster, on="numero_de_cliente"]
+rm(mapeo_baja)
 ```
 
 ```{r}
 table(DT_bajas_hist$cluster)
 ```
 
+Gráficos:
+```{r}
+setwd("~/buckets/b1/")
+dir.create(paste0("./exp/", "clusters", "/"), showWarnings = FALSE)
+setwd(paste0("./exp/", "clusters", "/"))
+
+pdf("clusters0.pdf")
+
+cols_a_graficar <- setdiff(
+  colnames(DT_bajas_hist),
+  c("numero_de_cliente", "foto_mes", 
+    "clase_ternaria", "cluster", "t_hasta_baja")
+)
+
+for (col in cols_a_graficar)
+{
+  ggplot(data=DT_bajas_hist, 
+         aes( t_hasta_baja, .data[[col]], colour=cluster )) +
+  geom_point() +
+  geom_smooth()
+}
+
+dev.off()
+```
 
 
 
