@@ -588,9 +588,9 @@ for (i in 1:length(cols_a_usar))
 #----- media dif_1    n=3
 n <- 3L
 cols_media_dif1 = c()
-for(col in cols_a_usar)
+for(col in cols_dif1)
 {
-  cols_media_dif1 = c(cols_media_dif1, paste0(col, "_media_dif_1"))
+  cols_media_dif1 = c(cols_media_dif1, paste0(col, "_media_", n))
 }
 
 dataset[, (cols_media_dif1) := frollmean(.SD, n=(n), fill=NA, align="right", algo="fast"), 
