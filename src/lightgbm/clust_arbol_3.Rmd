@@ -4,6 +4,7 @@ gc()
 require("data.table")
 require("rlist")
 require("randomForest")
+require("ggplot2")
 ```
 
 ```{r}
@@ -139,7 +140,7 @@ table(rf_hc_corte)
 ```
 
 ```{r}
-DT_bajas[ , cluster := rf_hc_corte]
+DT_bajas[ , cluster := as.factor(rf_hc_corte)]
 mapeo_baja = DT_bajas[, c("numero_de_cliente", "cluster")]
 DT_bajas_hist[mapeo_baja, cluster := cluster, on="numero_de_cliente"]
 rm(mapeo_baja)
@@ -151,11 +152,10 @@ table(DT_bajas_hist$cluster)
 
 Gráficos:
 ```{r}
+library(ggplot2)
 setwd("~/buckets/b1/")
 dir.create(paste0("./exp/", "clusters", "/"), showWarnings = FALSE)
 setwd(paste0("./exp/", "clusters", "/"))
-
-pdf("clusters0.pdf")
 
 cols_a_graficar <- setdiff(
   colnames(DT_bajas_hist),
@@ -163,19 +163,83 @@ cols_a_graficar <- setdiff(
     "clase_ternaria", "cluster", "t_hasta_baja")
 )
 
+pdf(file="clusters1.pdf")
 for (col in cols_a_graficar)
 {
-  ggplot(data=DT_bajas_hist, 
-         aes( t_hasta_baja, .data[[col]], colour=cluster )) +
-  geom_point() +
-  geom_smooth()
+   p <- ggplot(DT_bajas_hist, 
+         aes( -t_hasta_baja, .data[[col]], 
+              colour=as.factor(cluster) )) +
+        #geom_point() +
+        geom_smooth() +
+        #ggtitle(paste0(col, "")) +
+        xlab("t_hasta_baja") +
+        ylab(paste0(col, "")) +
+        labs(colour = "Cluster")
+   print(p)
 }
-
 dev.off()
+
+rm(cols_a_graficar)
+```
+
+```{r}
+setwd("~/buckets/b1/")
+dir.create(paste0("./exp/", "clusters", "/"), showWarnings = FALSE)
+setwd(paste0("./exp/", "clusters", "/"))
+
+pdf(file="clusters2.pdf")
+cols_a_graficar = c("cliente_vip", "ccuenta_corriente", 
+                    "mcuenta_corriente_adicional", "cprestamos_hipotecarios",
+                    "mprestamos_hipotecarios", "mplazo_fijo_pesos",
+                    "minversion1_dolares", "ccheques_emitidos_rechazados",
+                    "mcheques_emitidos_rechazados", "Master_Finiciomora",
+                    "Master_madelantopesos", "Master_madelantodolares",
+                    "Master_cadelantosefectivo", "Visa_madelantopesos",
+                    "Visa_madelantodolares", "Visa_cadelantosefectivo")
+for (col in cols_a_graficar)
+{
+   p <- ggplot(DT_bajas_hist, 
+         aes( -t_hasta_baja, .data[[col]], 
+              colour=as.factor(cluster) )) +
+        #geom_point() +
+        geom_smooth(method="glm") +
+        #ggtitle(paste0(col, "")) +
+        xlab("t_hasta_baja") +
+        ylab(paste0(col, "")) +
+        labs(colour = "Cluster")
+   print(p)
+}
+dev.off()
+
+rm(cols_a_graficar)
+```
+
+
+```{r}
+table( DT_bajas_hist$cliente_vip, useNA="always")
+```
+
+Ejemplo:
+```{r}
+nombre_col = "cliente_vip"
+
+ggplot(DT_bajas_hist, 
+       aes( x=-t_hasta_baja, y=.data[[nombre_col]],
+            colour=as.factor(cluster))) +
+  #geom_point() +
+  geom_smooth(method="glm",
+              method.args = list(family = binomial)) +
+  xlab("t_hasta_baja") +
+  ylab(paste0(nombre_col, "")) +
+  labs(colour = "Cluster")
 ```
 
 
 
+
+
+
+Otros:
 ```{r}
 DTU = DT20[ , lapply(.SD, median) , by=c("cluster"), .SDcols=(nombres_cols_dt2) ]
 mapeo_clusters = DT20[, c("numero_de_cliente", "cluster")]
