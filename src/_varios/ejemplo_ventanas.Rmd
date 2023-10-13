@@ -19,6 +19,22 @@ DT
 ```
 
 ```{r}
+campos_media <- c("y", "z")
+
+for (i in 1:3)
+{
+  nuevas_cols = c()
+  for(col in campos_media)
+  {
+    nuevas_cols = c(nuevas_cols, paste0(col, "_lag_", i))
+  }
+  DT[, (nuevas_cols) := shift(.SD, n=(i), fill=NA, type="lag"), 
+                        .SDcols = (campos_media), by=(g)]
+}
+```
+
+
+```{r}
 cols_reemplazar_ceros = c("z", "y")
 for (col in cols_reemplazar_ceros){
   DT[, (col) := fifelse( (g=="a") & (get(col) > 0.1),  
@@ -278,15 +294,42 @@ DT
 ```
 
 ```{r}
-campos_nrm_rango = c("mes", "value")
-nuevas_cols = c()
-for(col in campos_nrm_rango)
+#campos_nrm_rango = c("mes", "value")
+#nuevas_cols = c()
+#for(col in campos_nrm_rango)
+#{
+#  nuevas_cols = c(nuevas_cols, paste0(col, "_nrmr1"))
+#}
+
+#DT[, (nuevas_cols) := frank(.SD)/.N,
+#                      .SDcols = (campos_nrm_rango), by=mes]
+
+#DT[, (nuevas_cols) := frank(.SD),
+#                      .SDcols = (campos_nrm_rango), by=mes]
+
+#DT[, (nuevas_cols) := NULL]
+
+
+DT[, value2 := value + 100]
+campos_nrm_rango = c("value", "value2")
+for (col in campos_nrm_rango)
 {
-  nuevas_cols = c(nuevas_cols, paste0(col, "_nrmr1"))
+  nueva_col = paste0(col, "_nrmr1")
+  DT[, (nueva_col) := NULL]
+  DT[get(col) == 5, (nueva_col) := 0]
+  DT[get(col) > 5, (nueva_col) := frank(get(col)), by=mes]
+  DT[get(col) < 5, (nueva_col) := -frankv(get(col), order=-1L), by=mes]
 }
 
-DT[, (nuevas_cols) := frank(.SD)/.N,
-                      .SDcols = (campos_nrm_rango), by=mes]
+DT
+```
+
+```{r}
+DT[get("value") < 5,]
+```
+
+
+```{r}
 DT
 ```
 
