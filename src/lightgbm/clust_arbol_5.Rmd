@@ -14,7 +14,7 @@ setorderv(DT, cols=c("foto_mes"), order=c(1L))
 ```
 
 ```{r}
-unique(DT[["foto_mes"]])
+#unique(DT[["foto_mes"]])
 ```
 
 ```{r}
@@ -29,22 +29,41 @@ ids_bajas = unique(DT_bajas[["numero_de_cliente"]])
 DT_continua = DT[(foto_mes %in% meses) & (clase_ternaria == "CONTINUA")]
 ids_continua = unique(DT_continua[["numero_de_cliente"]])
 ids_continua = setdiff(ids_continua, ids_bajas)
+set.seed(888)
+ids_continua = sample( ids_continua,  as.integer(length(ids_continua) * 0.027) )
 
-DT_bajas_hist = DT[ (numero_de_cliente %in% ids_bajas) | 
-                    (numero_de_cliente %in% ids_continua) ]
+DT_bajas_hist = DT[ ((numero_de_cliente %in% ids_bajas) | 
+                     (numero_de_cliente %in% ids_continua)), ]
 setorderv(DT_bajas_hist, cols=c("foto_mes"), order=c(1L))
 
-rm(ids_bajas, DT_continua, ids_continua)
+rm(DT_continua, meses, ids_continua)
+```
+
+
+```{r}
+#hist( DT_bajas_hist[!(numero_de_cliente %in% ids_bajas), t_hasta_baja])
+```
+
+```{r}
+#table(DT_bajas_hist[!(numero_de_cliente %in% ids_bajas), foto_mes], useNA = "always")
+```
+
+```{r}
+nrow(DT_bajas_hist[(numero_de_cliente %in% ids_bajas)])
+```
+
+```{r}
+#table(DT_bajas_hist$clase_ternaria, useNA = "always")
 ```
 
 
 Crear col "t_hasta_baja" en DT_bajas_hist:
 ```{r}
 mapeo_baja = DT_bajas[, c("numero_de_cliente", "foto_mes")]
-colnames(mapeo_baja)[colnames(mapeo_baja) == "foto_mes"] = "foto_mes_baja2"
+colnames(mapeo_baja)[colnames(mapeo_baja) == "foto_mes"] = "foto_mes_baja2_2"
 
-DT_bajas_hist[, foto_mes_baja2 := 202105]
-DT_bajas_hist[mapeo_baja, foto_mes_baja2 := mapeo_baja$foto_mes_baja2, on="numero_de_cliente"]
+DT_bajas_hist[, foto_mes_baja2 := 202108]
+DT_bajas_hist[mapeo_baja, foto_mes_baja2 := foto_mes_baja2_2, on="numero_de_cliente"]
 DT_bajas_hist[, t_hasta_baja :=  (foto_mes_baja2 - foto_mes)]
 DT_bajas_hist[, foto_mes_baja2 := NULL]
 setorderv(DT_bajas_hist, cols=c("t_hasta_baja"), order=c(-1L))
@@ -67,6 +86,20 @@ DT_bajas_hist[numero_de_cliente == 29677433,
                 c("numero_de_cliente", "foto_mes", "t_hasta_baja")]
 ```
 
+
+Ver rangos cols con NA:
+```{r}
+if (FALSE) {
+  contains_any_na = sapply(DT_bajas, function(x) any(is.na(x)))
+  cols_con_na = names(DT_bajas)[contains_any_na]
+  
+  for (col in cols_con_na)
+  {
+    minimo = min(DT_bajas[!is.na(get(col)), get(col)])
+    cat(col,": ", minimo ,"\n")
+  }
+}
+```
 
 Crear DT_bajas_arb:
 ```{r}
@@ -118,7 +151,16 @@ if (FALSE)  # eliminar NA
   cols_con_na = names(DT2)[contains_any_na]
   DT2[, (cols_con_na) := NULL]
 } else {  # llenar NA
-  DT_bajas_arb = na.roughfix(DT_bajas_arb)
+  contains_any_na = sapply(DT_bajas_arb, function(x) any(is.na(x)))
+  cols_con_na = names(DT_bajas_arb)[contains_any_na]
+  setnafill( DT_bajas_arb, 
+           type = "const", 
+           fill = -9999999L, 
+           nan=NA, 
+           cols = cols_con_na)
+  rm(contains_any_na, cols_con_na)
+  
+  #DT_bajas_arb = na.roughfix(DT_bajas_arb)
 }
 ```
 
@@ -132,6 +174,20 @@ rf = randomForest::randomForest(x = DT_bajas_arb, y = NULL,
                                 oob.prox = TRUE,
                                 type="unsupervised")
 ```
+
+
+```{r}
+setwd("~/buckets/b1/")
+dir.create(paste0("./exp/", "clusters", "/"), showWarnings = FALSE)
+setwd(paste0("./exp/", "clusters", "/"))
+if (FALSE)
+{
+  save(rf, file = "rf_cluster3.RData")
+} else {
+  load("rf_cluster3.RData")
+}
+```
+
 
 ```{r}
 rf_hc = hclust( as.dist(1 - rf$proximity), 
@@ -152,8 +208,11 @@ Asignar cluster:
 ```{r}
 DT_bajas[ , cluster := as.factor(rf_hc_corte)]
 mapeo_baja = DT_bajas[, c("numero_de_cliente", "cluster")]
+colnames(mapeo_baja)[colnames(mapeo_baja) == "cluster"] = "cluster2"
 DT_bajas_hist[, cluster := 99]
-DT_bajas_hist[mapeo_baja, cluster := mapeo_baja$cluster, on="numero_de_cliente"]
+DT_bajas_hist[, cluster := as.factor(cluster)]
+DT_bajas_hist[mapeo_baja, cluster := cluster2, on="numero_de_cliente"]
+DT_bajas_hist[, cluster := as.factor(cluster)]
 rm(mapeo_baja)
 ```
 
@@ -181,13 +240,20 @@ if (FALSE) {
   )
 }
 
-DT_bajas_hist = setnafill(DT_bajas_hist, 
-                          type = "const", 
-                          fill = -1, 
-                          nan=NA, 
-                          cols = cols_con_na)
+if (FALSE) {
+  setnafill( DT_bajas_hist, 
+             type = "const", 
+             fill = -1L, 
+             nan=NA, 
+             cols = cols_con_na)
+}
 
-rm(cols_con_na)
+for (col in cols_con_na) {
+  col2 = paste0(col, "_es_NA")
+  DT_bajas_hist[, (col2) := fifelse( is.na(get(col)), 1, 0)]
+}
+
+rm(cols_con_na, col2)
 ```
 
 
@@ -204,7 +270,7 @@ cols_a_graficar <- setdiff(
     "clase_ternaria", "cluster", "t_hasta_baja")
 )
 
-pdf(file="clusters1.pdf")
+pdf(file="clusters3_g.pdf", width=10, height=6)
 for (col in cols_a_graficar)
 {
    p <- ggplot(DT_bajas_hist, 
@@ -230,7 +296,15 @@ setwd("~/buckets/b1/")
 dir.create(paste0("./exp/", "clusters", "/"), showWarnings = FALSE)
 setwd(paste0("./exp/", "clusters", "/"))
 
-pdf(file="clusters2.pdf")
+pdf(file="clusters3_l.pdf", width=10, height=6)
+
+if (TRUE) {
+cols_a_graficar <- setdiff(
+  colnames(DT_bajas_hist),
+  c("numero_de_cliente", "foto_mes", 
+    "clase_ternaria", "cluster", "t_hasta_baja")
+)
+} else {
 cols_a_graficar = c("cliente_vip", "ccuenta_corriente", 
                     "mcuenta_corriente_adicional", "cprestamos_hipotecarios",
                     "mprestamos_hipotecarios", "mplazo_fijo_pesos",
@@ -239,6 +313,8 @@ cols_a_graficar = c("cliente_vip", "ccuenta_corriente",
                     "Master_madelantopesos", "Master_madelantodolares",
                     "Master_cadelantosefectivo", "Visa_madelantopesos",
                     "Visa_madelantodolares", "Visa_cadelantosefectivo")
+}
+
 for (col in cols_a_graficar)
 {
    p <- ggplot(DT_bajas_hist, 
@@ -258,12 +334,30 @@ rm(cols_a_graficar)
 ```
 
 
+
+
+
+
+Ejemplo gam:
+```{r}
+nombre_col = "mcuentas_saldo"
+
+ggplot(DT_bajas_hist[cluster == 99, ], 
+       aes( x=-t_hasta_baja, y=.data[[nombre_col]],
+            colour=as.factor(cluster))) +
+  #geom_point() +
+  geom_smooth() +
+  xlab("t_hasta_baja") +
+  ylab(paste0(nombre_col, "")) +
+  labs(colour = "Cluster")
+```
+
 NAs:
 ```{r}
 table( DT_bajas_hist$cliente_vip, useNA="always")
 ```
 
-Ejemplo:
+Ejemplo glm:
 ```{r}
 nombre_col = "cliente_vip"
 
@@ -278,47 +372,3 @@ ggplot(DT_bajas_hist,
   labs(colour = "Cluster")
 ```
 
-
-
-
-Otros:
-```{r}
-DTU = DT20[ , lapply(.SD, median) , by=c("cluster"), .SDcols=(nombres_cols_dt2) ]
-mapeo_clusters = DT20[, c("numero_de_cliente", "cluster")]
-```
-
-```{r}
-DTU
-```
-
-```{r}
-DT3[mapeo_clusters, cluster := mapeo_clusters$cluster, on="numero_de_cliente"]
-```
-
-```{r}
-DTM = DT3[ , lapply(.SD, median) , by=c("cluster", "foto_mes"), .SDcols=sapply(DT3, is.numeric) ]
-```
-
-Evolución de variable (icol) para medianas de cada cluster: 
-```{r, fig.width=10, fig.height=15}
-library(ggplot2)
-library(gridExtra)
-
-colnm = "mactivos_margen"
-
-plots = list()
-for (iclust in 1:7)
-{
-  a = DTM[cluster == iclust,]
-  b = a[, colnm, with=FALSE]
-  b[, x := seq(1, nrow(a), by=1)]
-  
-  plots[[iclust]] <- ggplot(data=b, 
-         aes(x=.data[["x"]], y=.data[[colnm]], group=1)) +
-      geom_line(color="red") +
-      geom_point() +
-      ggtitle(paste0("Cluster ", iclust))
-}
-
-do.call(grid.arrange, c(plots, ncol=2) )
-```

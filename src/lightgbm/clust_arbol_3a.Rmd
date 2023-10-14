@@ -118,7 +118,7 @@ if (FALSE)  # eliminar NA
 
 
 ```{r}
-set.seed(888)
+#set.seed(888)
 rf = randomForest::randomForest(x = DT_bajas_arb, y = NULL, 
                                 ntree = 5000, 
                                 proximity = TRUE,
@@ -130,11 +130,11 @@ rf = randomForest::randomForest(x = DT_bajas_arb, y = NULL,
 setwd("~/buckets/b1/")
 dir.create(paste0("./exp/", "clusters", "/"), showWarnings = FALSE)
 setwd(paste0("./exp/", "clusters", "/"))
-if (FALSE)
+if (TRUE)
 {
-  save(rf, file = "rf_cluster.RData")
+  save(rf, file = "rf_cluster2.RData")
 } else {
-  load(file="rf_cluster.RData")
+  load(file="rf_cluster2.RData")
 }
 ```
 
@@ -177,7 +177,7 @@ cols_a_graficar <- setdiff(
     "clase_ternaria", "cluster", "t_hasta_baja")
 )
 
-pdf(file="clusters1a.pdf")
+pdf(file="clusters2_g.pdf")
 for (col in cols_a_graficar)
 {
    p <- ggplot(DT_bajas_hist, 
@@ -201,7 +201,7 @@ setwd("~/buckets/b1/")
 dir.create(paste0("./exp/", "clusters", "/"), showWarnings = FALSE)
 setwd(paste0("./exp/", "clusters", "/"))
 
-pdf(file="clusters2a.pdf")
+pdf(file="clusters2_l.pdf")
 cols_a_graficar = c("cliente_vip", "ccuenta_corriente", 
                     "mcuenta_corriente_adicional", "cprestamos_hipotecarios",
                     "mprestamos_hipotecarios", "mplazo_fijo_pesos",
