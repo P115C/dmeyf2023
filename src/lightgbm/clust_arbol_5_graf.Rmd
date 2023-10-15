@@ -1,0 +1,315 @@
+```{r}
+rm(list = ls())
+gc()
+require("data.table")
+require("rlist")
+require("randomForest")
+require("ggplot2")
+```
+
+```{r}
+setwd("~/buckets/b1/")
+DT <- fread("./datasets/competencia_02.csv.gz")
+setorderv(DT, cols=c("foto_mes"), order=c(1L))
+```
+
+```{r}
+#unique(DT[["foto_mes"]])
+```
+
+```{r}
+#meses = c(201908, 201909 ,201910, 201911, 201912, 202001, 202002, 202003 ,202004 ,202005,
+#          202006, 202007, 202008 ,202009 ,202010, 202011 ,202012 ,202101 ,202102, 202103 ,202104 ,202105)
+
+meses = c(202101, 202102, 202103, 202104, 202105)
+
+DT_bajas = DT[(foto_mes %in% meses) & (clase_ternaria == "BAJA+2")]
+ids_bajas = unique(DT_bajas[["numero_de_cliente"]])
+
+DT_continua = DT[(foto_mes %in% meses) & (clase_ternaria == "CONTINUA")]
+ids_continua = unique(DT_continua[["numero_de_cliente"]])
+ids_continua = setdiff(ids_continua, ids_bajas)
+set.seed(888)
+ids_continua = sample( ids_continua,  as.integer(length(ids_continua) * 0.027) )
+
+DT_bajas_hist = DT[ ((numero_de_cliente %in% ids_bajas) | 
+                     (numero_de_cliente %in% ids_continua)), ]
+setorderv(DT_bajas_hist, cols=c("foto_mes"), order=c(1L))
+
+rm(DT_continua, meses, ids_continua)
+```
+
+
+```{r}
+#hist( DT_bajas_hist[!(numero_de_cliente %in% ids_bajas), t_hasta_baja])
+```
+
+```{r}
+#table(DT_bajas_hist[!(numero_de_cliente %in% ids_bajas), foto_mes], useNA = "always")
+```
+
+```{r}
+nrow(DT_bajas_hist[(numero_de_cliente %in% ids_bajas)])
+```
+
+```{r}
+#table(DT_bajas_hist$clase_ternaria, useNA = "always")
+```
+
+
+Crear col "t_hasta_baja" en DT_bajas_hist:
+```{r}
+mapeo_baja = DT_bajas[, c("numero_de_cliente", "foto_mes")]
+colnames(mapeo_baja)[colnames(mapeo_baja) == "foto_mes"] = "foto_mes_baja2_2"
+
+DT_bajas_hist[, foto_mes_baja2 := 202108]
+DT_bajas_hist[mapeo_baja, foto_mes_baja2 := foto_mes_baja2_2, on="numero_de_cliente"]
+DT_bajas_hist[, t_hasta_baja :=  (foto_mes_baja2 - foto_mes)]
+DT_bajas_hist[, foto_mes_baja2 := NULL]
+setorderv(DT_bajas_hist, cols=c("t_hasta_baja"), order=c(-1L))
+
+DT_bajas_hist[ , t_hasta_baja := frankv(t_hasta_baja, order=1L), 
+               by=numero_de_cliente]
+
+rm(mapeo_baja)
+```
+
+
+Ejemplo "t_hasta_baja":
+```{r}
+DT_bajas[numero_de_cliente == 29677433, 
+                c("numero_de_cliente", "foto_mes")]
+```
+
+```{r}
+DT_bajas_hist[numero_de_cliente == 29677433, 
+                c("numero_de_cliente", "foto_mes", "t_hasta_baja")]
+```
+
+
+Crear DT_bajas_arb:
+```{r}
+DT_bajas_arb = copy(DT_bajas)
+cols_a_remover = c("foto_mes", "clase_ternaria", "numero_de_cliente")
+DT_bajas_arb[, (cols_a_remover) := NULL]
+rm(cols_a_remover)
+
+# llenar NA
+contains_any_na = sapply(DT_bajas_arb, function(x) any(is.na(x)))
+cols_con_na = names(DT_bajas_arb)[contains_any_na]
+setnafill( DT_bajas_arb, 
+         type = "const", 
+         fill = -9999999L, 
+         nan=NA, 
+         cols = cols_con_na)
+rm(contains_any_na, cols_con_na)
+```
+
+
+Distancias y clustering:
+```{r}
+set.seed(888)
+rf = randomForest::randomForest(x = DT_bajas_arb, y = NULL, 
+                                ntree = 5000, 
+                                proximity = TRUE,
+                                oob.prox = TRUE,
+                                type="unsupervised")
+```
+
+
+```{r}
+setwd("~/buckets/b1/")
+dir.create(paste0("./exp/", "clusters", "/"), showWarnings = FALSE)
+setwd(paste0("./exp/", "clusters", "/"))
+if (FALSE)
+{
+  save(rf, file = "rf_cluster3.RData")
+} else {
+  load("rf_cluster3.RData")
+}
+```
+
+
+```{r}
+rf_hc = hclust( as.dist(1 - rf$proximity), 
+                method = "ward.D2" )
+```
+
+```{r}
+rf_hc_corte <- cutree( rf_hc, 
+                       k = 7 )
+```
+
+```{r}
+table(rf_hc_corte)
+```
+
+
+Asignar cluster:
+```{r}
+DT_bajas[ , cluster := as.factor(rf_hc_corte)]
+mapeo_baja = DT_bajas[, c("numero_de_cliente", "cluster")]
+colnames(mapeo_baja)[colnames(mapeo_baja) == "cluster"] = "cluster2"
+DT_bajas_hist[, cluster := 99]
+DT_bajas_hist[, cluster := as.factor(cluster)]
+DT_bajas_hist[mapeo_baja, cluster := cluster2, on="numero_de_cliente"]
+DT_bajas_hist[, cluster := as.factor(cluster)]
+rm(mapeo_baja)
+```
+
+```{r}
+table(DT_bajas_hist$cluster)
+```
+
+
+Incluir NA:
+```{r}
+contains_any_na = sapply(DT_bajas_hist, function(x) any(is.na(x)))
+cols_con_na = names(DT_bajas_hist)[contains_any_na]
+rm(contains_any_na)
+```
+
+```{r}
+#cols_con_na
+```
+
+```{r}
+if (FALSE) {
+  cols_con_na <- setdiff(
+    cols_con_na,
+    c("")
+  )
+}
+
+if (FALSE) {
+  setnafill( DT_bajas_hist, 
+             type = "const", 
+             fill = -1L, 
+             nan=NA, 
+             cols = cols_con_na)
+}
+
+for (col in cols_con_na) {
+  col2 = paste0(col, "_es_NA")
+  DT_bajas_hist[, (col2) := fifelse( is.na(get(col)), 1, 0)]
+}
+
+rm(cols_con_na, col2)
+```
+
+
+Gráficos gam:
+```{r}
+library(ggplot2)
+setwd("~/buckets/b1/")
+dir.create(paste0("./exp/", "clusters", "/"), showWarnings = FALSE)
+setwd(paste0("./exp/", "clusters", "/"))
+
+cols_a_graficar <- setdiff(
+  colnames(DT_bajas_hist),
+  c("numero_de_cliente", "foto_mes", 
+    "clase_ternaria", "cluster", "t_hasta_baja")
+)
+
+pdf(file="clusters3_g.pdf", width=10, height=6)
+for (col in cols_a_graficar)
+{
+   p <- ggplot(DT_bajas_hist, 
+         aes( -t_hasta_baja, .data[[col]], 
+              colour=as.factor(cluster) )) +
+        #geom_point() +
+        geom_smooth() +
+        #ggtitle(paste0(col, "")) +
+        xlab("t_hasta_baja") +
+        ylab(paste0(col, "")) +
+        labs(colour = "Cluster")
+   print(p)
+}
+dev.off()
+
+rm(cols_a_graficar)
+```
+
+
+Gráficos glm:
+```{r}
+setwd("~/buckets/b1/")
+dir.create(paste0("./exp/", "clusters", "/"), showWarnings = FALSE)
+setwd(paste0("./exp/", "clusters", "/"))
+
+pdf(file="clusters3_l.pdf", width=10, height=6)
+
+if (TRUE) {
+cols_a_graficar <- setdiff(
+  colnames(DT_bajas_hist),
+  c("numero_de_cliente", "foto_mes", 
+    "clase_ternaria", "cluster", "t_hasta_baja")
+)
+} else {
+cols_a_graficar = c("cliente_vip", "ccuenta_corriente", 
+                    "mcuenta_corriente_adicional", "cprestamos_hipotecarios",
+                    "mprestamos_hipotecarios", "mplazo_fijo_pesos",
+                    "minversion1_dolares", "ccheques_emitidos_rechazados",
+                    "mcheques_emitidos_rechazados", "Master_Finiciomora",
+                    "Master_madelantopesos", "Master_madelantodolares",
+                    "Master_cadelantosefectivo", "Visa_madelantopesos",
+                    "Visa_madelantodolares", "Visa_cadelantosefectivo")
+}
+
+for (col in cols_a_graficar)
+{
+   p <- ggplot(DT_bajas_hist, 
+         aes( -t_hasta_baja, .data[[col]], 
+              colour=as.factor(cluster) )) +
+        #geom_point() +
+        geom_smooth(method="glm") +
+        #ggtitle(paste0(col, "")) +
+        xlab("t_hasta_baja") +
+        ylab(paste0(col, "")) +
+        labs(colour = "Cluster")
+   print(p)
+}
+dev.off()
+
+rm(cols_a_graficar)
+```
+
+
+
+
+
+
+Ejemplo gam:
+```{r}
+nombre_col = "mcuentas_saldo"
+
+ggplot(DT_bajas_hist[cluster == 99, ], 
+       aes( x=-t_hasta_baja, y=.data[[nombre_col]],
+            colour=as.factor(cluster))) +
+  #geom_point() +
+  geom_smooth() +
+  xlab("t_hasta_baja") +
+  ylab(paste0(nombre_col, "")) +
+  labs(colour = "Cluster")
+```
+
+NAs:
+```{r}
+table( DT_bajas_hist$cliente_vip, useNA="always")
+```
+
+Ejemplo glm:
+```{r}
+nombre_col = "cliente_vip"
+
+ggplot(DT_bajas_hist, 
+       aes( x=-t_hasta_baja, y=.data[[nombre_col]],
+            colour=as.factor(cluster))) +
+  #geom_point() +
+  geom_smooth(method="glm",
+              method.args = list(family = binomial)) +
+  xlab("t_hasta_baja") +
+  ylab(paste0(nombre_col, "")) +
+  labs(colour = "Cluster")
+```
+
