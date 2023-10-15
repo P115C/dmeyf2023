@@ -13,27 +13,46 @@ require("zoo")
 # defino los parametros de la corrida, en una lista, la variable global  PARAM
 #  muy pronto esto se leera desde un archivo formato .yaml
 PARAM <- list()
-PARAM$experimento <- "final2"
+PARAM$experimento <- "final2_238_1"
 
 PARAM$input$dataset <- "./datasets/competencia_02.csv.gz"
 
 # meses donde se entrena el modelo
-PARAM$input$training <- c(201905, 201906, 201907, 201908, 201909, 201910, 201911, 201912,
-                          202010, 202011, 202012, 
+#   237_0     final2_237_0    final2_237_1
+#PARAM$input$training <- c(201905, 201906, 201907, 201908, 201909, 201910, 201911, 201912,
+#                          202010, 202011, 202012, 
+#                          202101, 202102, 202103, 202104, 202105)
+juntar_cols = FALSE
+
+#   232_0     final2_235_0    final2_235_1
+PARAM$input$training <- c(201901, 201902, 201903, 201904, 201905, 201906, 
+                          201907, 201908, 201909, 201910, 201911, 201912,
+                          202010, 202011, 202012,
                           202101, 202102, 202103, 202104, 202105)
+#juntar_cols = TRUE
+
+
 
 PARAM$input$future <- c(202107) # meses donde se aplica el modelo
-
 PARAM$finalmodel$semilla <- 151051
 
-# hiperparametros intencionalmente NO optimos
-PARAM$finalmodel$optim$num_iterations <- 730
-PARAM$finalmodel$optim$learning_rate <- 0.0323601846272594
-PARAM$finalmodel$optim$feature_fraction <- 0.909773795582897
-PARAM$finalmodel$optim$min_data_in_leaf <- 4637
-PARAM$finalmodel$optim$num_leaves <- 667
+
+#   237_0 
+PARAM$finalmodel$optim$num_iterations <- 829
+PARAM$finalmodel$optim$learning_rate <- 0.0314795407476228
+PARAM$finalmodel$optim$feature_fraction <- 0.575871678909783
+PARAM$finalmodel$optim$min_data_in_leaf <- 5336
+PARAM$finalmodel$optim$num_leaves <- 478
+
+#   232_0
+#PARAM$finalmodel$optim$num_iterations <- 411
+#PARAM$finalmodel$optim$learning_rate <- 0.090567777671882
+#PARAM$finalmodel$optim$feature_fraction <- 0.870907307849918
+#PARAM$finalmodel$optim$min_data_in_leaf <- 9496
+#PARAM$finalmodel$optim$num_leaves <- 1024
 
 
+#----------------------
 # Hiperparametros FIJOS de  lightgbm
 PARAM$finalmodel$lgb_basicos <- list(
   boosting = "gbdt", # puede ir  dart  , ni pruebe random_forest
@@ -180,7 +199,7 @@ dataset[, foto_mes_rang := NULL]
 
 Juntar variables:
 ```{r}
-if (FALSE)
+if (juntar_cols)
 {
 dataset[, t_delinquency := fcase( Master_delinquency > 0, 1,
                                   Visa_delinquency > 0, 1,
@@ -313,7 +332,7 @@ cols_a_usar <- setdiff(
 )
 
 #----- media
-n <- 5L # 3L
+n <- 8L # 5L
 cols_media = c()
 for(col in cols_a_usar)
 {
@@ -351,8 +370,8 @@ for (i in 1:length(cols_a_usar))
   dataset[, (cols_dif1[i]) := dataset[[cols_a_usar[i]]] - dataset[[cols_lag1[i]]] ]
 }
 
-#----- media dif_1    n=3
-n <- 3L
+#----- media dif_1  
+n <- 8L # 3L
 cols_media_dif1 = c()
 for(col in cols_dif1)
 {

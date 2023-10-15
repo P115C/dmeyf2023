@@ -62,7 +62,7 @@ Crear col "t_hasta_baja" en DT_bajas_hist:
 mapeo_baja = DT_bajas[, c("numero_de_cliente", "foto_mes")]
 colnames(mapeo_baja)[colnames(mapeo_baja) == "foto_mes"] = "foto_mes_baja2_2"
 
-DT_bajas_hist[, foto_mes_baja2 := 202108]
+DT_bajas_hist[, foto_mes_baja2 := 202105] # 202108]
 DT_bajas_hist[mapeo_baja, foto_mes_baja2 := foto_mes_baja2_2, on="numero_de_cliente"]
 DT_bajas_hist[, t_hasta_baja :=  (foto_mes_baja2 - foto_mes)]
 DT_bajas_hist[, foto_mes_baja2 := NULL]
@@ -145,6 +145,124 @@ table(rf_hc_corte)
 ```
 
 
+
+Arreglar datos nulos en algunos meses:
+```{r}
+reemplazar_con_na = TRUE
+
+cols_reemplazar_ceros = c("active_quarter", "internet", "mcuentas_saldo",
+                          "ctarjeta_debito_transacciones", "mautoservicio",
+                          "ctarjeta_visa_transacciones", "mtarjeta_visa_consumo",
+                          "ctarjeta_master_transacciones", "mtarjeta_master_consumo",
+                          "cextraccion_autoservicio", "mextraccion_autoservicio",
+                          "ccheques_depositados", "mcheques_depositados", "ccheques_emitidos",
+                          "mcheques_emitidos", "ccheques_depositados_rechazados",
+                          "mcheques_depositados_rechazados", "ccheques_emitidos_rechazados",
+                          "mcheques_emitidos_rechazados", "tcallcenter",
+                          "ccallcenter_transacciones", "thomebanking", "ccajas_transacciones",
+                          "ccajas_consultas", "ccajas_depositos", "ccajas_extracciones",
+                          "ccajas_otras", "catm_trx", "matm", "catm_trx_other", "matm_other",
+                          "tmobile_app", "cmobile_app_trx")
+for (col in cols_reemplazar_ceros){
+  DT_bajas_hist[foto_mes==202006, (col) := NA]
+}
+
+cols_reemplazar_ceros = c("mrentabilidad", "mrentabilidad_annual", "mcomisiones",
+                          "mactivos_margen", "mpasivos_margen", "ccomisiones_otras",
+                          "mcomisiones_otras" )
+meses = c(201905, 201910, 202006)
+for (col in cols_reemplazar_ceros){
+  DT_bajas_hist[foto_mes %in% meses, (col) := NA]
+}
+
+cols_reemplazar_ceros = c("ctarjeta_visa_debitos_automaticos", "mttarjeta_visa_debitos_automaticos")
+for (col in cols_reemplazar_ceros){
+  DT_bajas_hist[foto_mes==201904, (col) := NA]
+}
+
+cols_reemplazar_ceros = c("chomebanking_transacciones")
+meses = c(201910, 202006)
+for (col in cols_reemplazar_ceros){
+  DT_bajas_hist[foto_mes %in% meses, (col) := NA]
+}
+
+rm(meses, cols_reemplazar_ceros)
+```
+
+
+Normalización por inflación:
+```{r}
+foto_mes = c(201901, 201902, 201903, 201904, 201905, 201906, 201907, 201908, 201909, 201910, 201911, 201912, 202001, 202002, 202003, 202004, 202005, 202006, 202007, 202008, 202009, 202010, 202011, 202012, 202101, 202102, 202103, 202104, 202105, 202106, 202107, 202108, 202109, 202110, 202111, 202112)
+
+ipc = c(189.6101, 196.7501, 205.9571, 213.0517, 219.5691, 225.537, 230.494, 239.6077, 253.7102, 262.0661, 273.2158, 283.4442, 289.8299, 295.666, 305.5515, 310.1243, 314.9087, 321.9738, 328.2014, 337.0632, 346.6207, 359.657, 371.0211, 385.8826, 401.5071, 415.8595, 435.8657, 453.6503, 468.725, 483.6049, 498.0987, 510.3942, 528.4968, 547.0802, 560.9184, 582.4575)
+ipc = ipc/100
+
+mapeo_ipc = data.table(foto_mes=foto_mes, ipc=ipc)
+#mapeo_ipc[, foto_mes := as.character(foto_mes)]
+rm(foto_mes, ipc)
+
+cols_pesos <- c("mcuentas_saldo", "mprestamos_personales", "mcuenta_corriente_adicional",
+                "mcuenta_corriente", "mactivos_margen", "mcaja_ahorro_adicional",
+                "mcaja_ahorro", "mcomisiones_mantenimiento", "mplazo_fijo_pesos",
+                "mpasivos_margen", "mcomisiones", "mcajeros_propios_descuentos",
+                "mtarjeta_visa_consumo", "mtarjeta_t_consumo", 
+                "mrentabilidad", "mpayroll", "mpayroll2",
+                "mrentabilidad_annual", "Visa_msaldopesos",
+                "Visa_msaldototal", "Visa_mpagominimo",
+                "mcomisiones_otras", "mextraccion_autoservicio",
+                "matm", "mtarjeta_master_consumo",
+                "Visa_mpagospesos", "mcaja_ahorro_dolares",
+                "mtransferencias_recibidas", "Master_msaldopesos",
+                "Master_msaldototal", "mtransferencias_emitidas",
+                "Master_mpagominimo", "Visa_mfinanciacion_limite",
+                "Visa_mlimitecompra", "Master_mpagosdolares",
+                "mcheques_emitidos_rechazados", "minversion1_pesos",
+                "minversion2", "mcheques_emitidos", "minversion1_dolares",
+                "mprestamos_prendarios", "Master_mconsumosdolares",
+                "Master_mpagospesos", "Master_msaldodolares",
+                "Visa_mpagosdolares", "mautoservicio",
+                "mprestamos_hipotecarios", "mplazo_fijo_dolares",
+                "mcuenta_debitos_automaticos", "mttarjeta_visa_debitos_automaticos",
+                "mttarjeta_master_debitos_automaticos",
+                "mpagodeservicios", "mpagomiscuentas",
+                "mtarjeta_visa_descuentos", "mtarjeta_master_descuentos",
+                "mforex_buy", "mforex_sell", "mcheques_depositados",
+                "mcheques_depositados_rechazados", "matm_other",
+                "Master_mfinanciacion_limite", "Master_mconsumospesos",
+                "Master_mlimitecompra", "Master_madelantopesos",
+                "Master_madelantodolares", "Master_mpagado",
+                "Master_mconsumototal", "Visa_msaldodolares",
+                "Visa_mconsumospesos", "Visa_mconsumosdolares",
+                "Visa_madelantopesos", "Visa_madelantodolares",
+                "Visa_mpagado", "Visa_mconsumototal")
+
+cols_pesos2 = c()
+for(col in cols_pesos)
+{
+  if (col %in% colnames(DT_bajas_hist)){
+    cols_pesos2 = c(cols_pesos2, col)
+  }
+  col1 = gsub("visa", "t", col)
+  if ((col1 != col) & (col1 %in% colnames(DT_bajas_hist)))
+  {
+    cols_pesos2 = c(cols_pesos2, col1)
+  }
+  col1 = gsub("Visa", "t", col)
+  if ((col1 != col) & (col1 %in% colnames(DT_bajas_hist)))
+  {
+    cols_pesos2 = c(cols_pesos2, col1)
+  }
+}
+cols_pesos2 = unique(cols_pesos2)
+rm(cols_pesos)
+
+DT_bajas_hist[mapeo_ipc, (cols_pesos2) := (.SD) / ipc , 
+          on="foto_mes", .SDcols = (cols_pesos2)]
+
+rm(mapeo_ipc, cols_pesos2, col1)
+```
+
+
 Asignar cluster:
 ```{r}
 DT_bajas[ , cluster := as.factor(rf_hc_corte)]
@@ -198,6 +316,51 @@ rm(cols_con_na, col2)
 ```
 
 
+Gráficos gam específicos:
+```{r}
+#cols_a_graficar = c("active_quarter", "mactivos_margen", "mtarjeta_visa_consumo",
+#                    )
+
+cols_a_graficar <- setdiff(
+  colnames(DT_bajas_hist),
+  c("numero_de_cliente", "foto_mes", 
+    "clase_ternaria", "cluster", "t_hasta_baja")
+)
+
+DT_bajas_hist2 = copy(DT_bajas_hist)
+DT_bajas_hist2[cluster == 6, cluster := 5]
+ncluster = c(1,2,5,7,99)
+   
+#--------------------------
+library(ggplot2)
+setwd("~/buckets/b1/")
+dir.create(paste0("./exp/", "clusters", "/"), showWarnings = FALSE)
+setwd(paste0("./exp/", "clusters", "/"))
+
+fp = paste0("clusters3_g-clust", ncluster[1], ".pdf")
+pdf(file=fp, width=7, height=4)
+for (col in cols_a_graficar)   
+{
+   p <- ggplot(DT_bajas_hist2[cluster %in% ncluster,], 
+         aes( -t_hasta_baja, .data[[col]],
+              colour=as.factor(cluster) )) +
+        #geom_point() +
+        geom_smooth() +
+        #ggtitle(paste0(col, "")) +
+        xlab("t_hasta_baja") + 
+        ylab(paste0(col, "")) +
+        labs(colour = "Cluster") +
+        scale_color_hue(labels = c("Regular", "Sólo por el préstamo", "Sólo por el sueldo",
+                                   "Cambia de banco o retira", "Sólo por la tarjeta"))
+        #scale_color_manual(labels = c("Regulares", "Baja"), values = c("gold", "red"))
+   print(p)
+}
+dev.off() 
+
+rm(cols_a_graficar, ncluster, fp, p)
+```
+
+
 Gráficos gam:
 ```{r}
 library(ggplot2)
@@ -211,7 +374,7 @@ cols_a_graficar <- setdiff(
     "clase_ternaria", "cluster", "t_hasta_baja")
 )
 
-pdf(file="clusters3_g.pdf", width=10, height=6)
+pdf(file="clusters3_g.pdf", width=9, height=5)
 for (col in cols_a_graficar)
 {
    p <- ggplot(DT_bajas_hist, 
