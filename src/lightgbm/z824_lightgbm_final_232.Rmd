@@ -13,24 +13,23 @@ require("zoo")
 # defino los parametros de la corrida, en una lista, la variable global  PARAM
 #  muy pronto esto se leera desde un archivo formato .yaml
 PARAM <- list()
-PARAM$experimento <- "final2_237_3"
+PARAM$experimento <- "final2_232_0"
 
 PARAM$input$dataset <- "./datasets/competencia_02.csv.gz"
 
 # meses donde se entrena el modelo
-#   237_0     final2_237_0    final2_237_1    final2_237_2    final2_237_3
-PARAM$input$training <- c(201905, 201906, 201907, 201908, 201909, 201910, 201911, 201912,
-                          202010, 202011, 202012, 
-                          202101, 202102, 202103, 202104, 202105)
-juntar_cols = FALSE
-con_normalizacion_rango = TRUE
-
-#   232_0     final2_235_0    final2_235_1    final2_238_1
-#PARAM$input$training <- c(201901, 201902, 201903, 201904, 201905, 201906, 
-#                          201907, 201908, 201909, 201910, 201911, 201912,
-#                          202010, 202011, 202012,
+#   237_0     final2_237_0    final2_237_1
+#PARAM$input$training <- c(201905, 201906, 201907, 201908, 201909, 201910, 201911, 201912,
+#                          202010, 202011, 202012, 
 #                          202101, 202102, 202103, 202104, 202105)
-#juntar_cols = TRUE
+#juntar_cols = FALSE
+
+#   232_0     final2_235_0    final2_235_1
+PARAM$input$training <- c(201901, 201902, 201903, 201904, 201905, 201906, 
+                          201907, 201908, 201909, 201910, 201911, 201912,
+                          202010, 202011, 202012,
+                          202101, 202102, 202103, 202104, 202105)
+juntar_cols = TRUE
 
 
 
@@ -39,18 +38,18 @@ PARAM$finalmodel$semilla <- 151051
 
 
 #   237_0 
-PARAM$finalmodel$optim$num_iterations <- 829
-PARAM$finalmodel$optim$learning_rate <- 0.0314795407476228
-PARAM$finalmodel$optim$feature_fraction <- 0.575871678909783
-PARAM$finalmodel$optim$min_data_in_leaf <- 5336
-PARAM$finalmodel$optim$num_leaves <- 478
+#PARAM$finalmodel$optim$num_iterations <- 829
+#PARAM$finalmodel$optim$learning_rate <- 0.0314795407476228
+#PARAM$finalmodel$optim$feature_fraction <- 0.575871678909783
+#PARAM$finalmodel$optim$min_data_in_leaf <- 5336
+#PARAM$finalmodel$optim$num_leaves <- 478
 
 #   232_0
-#PARAM$finalmodel$optim$num_iterations <- 411
-#PARAM$finalmodel$optim$learning_rate <- 0.090567777671882
-#PARAM$finalmodel$optim$feature_fraction <- 0.870907307849918
-#PARAM$finalmodel$optim$min_data_in_leaf <- 9496
-#PARAM$finalmodel$optim$num_leaves <- 1024
+PARAM$finalmodel$optim$num_iterations <- 411
+PARAM$finalmodel$optim$learning_rate <- 0.090567777671882
+PARAM$finalmodel$optim$feature_fraction <- 0.870907307849918
+PARAM$finalmodel$optim$min_data_in_leaf <- 9496
+PARAM$finalmodel$optim$num_leaves <- 1024
 
 
 #----------------------
@@ -181,9 +180,19 @@ rm(meses, cols_reemplazar_ceros)
 ```
 
 
+Llenar con ceros:
+```{r}
+cols_nans_con_ceros = c("mtarjeta_visa_descuentos", "mtarjeta_master_descuentos",
+                        "tmobile_app", "cmobile_app_trx")
+setnafill(dataset, type="const", fill=0, cols=cols_nans_con_ceros)
+
+rm(cols_nans_con_ceros)
+```
+
+
 Arreglar variables con valores no esperados:
 ```{r}
-dataset[, internet := fifelse(internet > 1, 1, 0) ]
+dataset[, internet := fifelse(internet > 1, 1, internet) ]
 ```
 
 
@@ -323,168 +332,89 @@ rm(mapeo_ipc, cols_pesos2, col1)
 ```
 
 
-Media en ventana, lags, difs:
+Media en ventana, lag2, lag3, dif1, dif2:
 ```{r}
-cols_a_usar <- setdiff(
+campos_media <- setdiff(
   colnames(dataset),
   c("foto_mes_rangdif",
     "clase_ternaria", "foto_mes", "numero_de_cliente", 
-    "cliente_edad", "cliente_antiguedad") # "ccuenta_corriente")
+    "cliente_edad", "cliente_antiguedad", "ccuenta_corriente")
 )
 
 #----- media
-n <- 5L # 5L  8L
-cols_media = c()
-for(col in cols_a_usar)
+n <- 5L # 3L
+nuevas_cols = c()
+for(col in campos_media)
 {
-  cols_media = c(cols_media, paste0(col, "_media_", n))
+  nuevas_cols = c(nuevas_cols, paste0(col, "_media_", n))
 }
 
-dataset[, (cols_media) := frollmean(.SD, n=(n), fill=NA, align="right", algo="fast"), 
-                      .SDcols = (cols_a_usar), by=numero_de_cliente]
+dataset[, (nuevas_cols) := frollmean(.SD, n=(n), fill=NA, align="right", algo="fast"), 
+                      .SDcols = (campos_media), by=numero_de_cliente]
 
-dataset[, (cols_media) := shift(.SD, n=1L, fill=NA, type="lag"),
-                      .SDcols = (cols_media), by=numero_de_cliente] 
+dataset[, (nuevas_cols) := shift(.SD, n=1L, fill=NA, type="lag"),
+                      .SDcols = (nuevas_cols), by=numero_de_cliente] 
 
-#----- lags
-for (i in 1:6)
+#----- lag2
+nuevas_cols = c()
+for(col in campos_media)
 {
-  cols_lag = c()
-  for(col in cols_a_usar)
-  {
-    cols_lag = c(cols_lag, paste0(col, "_lag_", i))
-  }
-  dataset[, (cols_lag) := shift(.SD, n=(i), fill=NA, type="lag"), 
-                        .SDcols = (cols_a_usar), by=numero_de_cliente]
+  nuevas_cols = c(nuevas_cols, paste0(col, "lag2"))
 }
 
-#----- dif_1
-cols_dif1 = c()
-cols_lag1 = c()
-for(col in cols_a_usar)
+dataset[, (nuevas_cols) := shift(.SD, n=2L, fill=NA, type="lag"), 
+                        .SDcols = (campos_media), by=numero_de_cliente]
+
+#----- lag3
+nuevas_cols = c()
+for(col in campos_media)
 {
-  cols_dif1 = c(cols_dif1, paste0(col, "_dif_1"))
-  cols_lag1 = c(cols_lag1, paste0(col, "_lag_1"))
-}
-for (i in 1:length(cols_a_usar))
-{
-  dataset[, (cols_dif1[i]) := dataset[[cols_a_usar[i]]] - dataset[[cols_lag1[i]]] ]
+  nuevas_cols = c(nuevas_cols, paste0(col, "lag3"))
 }
 
-#----- media dif_1  
-n <- 3L # 3L  8L
-cols_media_dif1 = c()
-for(col in cols_dif1)
+dataset[, (nuevas_cols) := shift(.SD, n=3L, fill=NA, type="lag"), 
+                        .SDcols = (campos_media), by=numero_de_cliente]
+
+#----- dif1
+nuevas_cols = c()
+for(col in campos_media)
 {
-  cols_media_dif1 = c(cols_media_dif1, paste0(col, "_media_", n))
+  nuevas_cols = c(nuevas_cols, paste0(col, "_dif1"))
 }
 
-dataset[, (cols_media_dif1) := frollmean(.SD, n=(n), fill=NA, align="right", algo="fast"), 
-                      .SDcols = (cols_dif1), by=numero_de_cliente]
+dataset[, (nuevas_cols) := shift(.SD, n=1L, fill=NA, type="lag"), 
+                        .SDcols = (campos_media), by=numero_de_cliente]
 
-dataset[, (cols_media_dif1) := shift(.SD, n=1L, fill=NA, type="lag"),
-                      .SDcols = (cols_media_dif1), by=numero_de_cliente] 
-
-
-#----- dif_2+
-cols_dif_prev = cols_dif1
-for (i in 2:2)
+for (i in 1:length(campos_media))
 {
-  cols_dif = c()
-  for(col in cols_a_usar)
-  {
-    cols_dif = c(cols_dif, paste0(col, "_dif_", i))
-  }
-
-  dataset[, (cols_dif) := shift(.SD, n=1L, fill=NA, type="lag"), 
-                        .SDcols = (cols_dif_prev), by=numero_de_cliente]
-  
-  for (i in 1:length(cols_a_usar))
-  {
-    dataset[, (cols_dif[i]) := dataset[[cols_dif_prev[i]]] - dataset[[cols_dif[i]]] ]
-  }
-  
-  cols_dif_prev = cols_dif
+  dataset[, (nuevas_cols[i]) := dataset[[campos_media[i]]] - dataset[[nuevas_cols[i]]] ]
 }
 
-rm(cols_a_usar, cols_lag, cols_dif, cols_dif_prev, 
-   cols_dif1, cols_lag1, cols_media, cols_media_dif1)
+#dataset[, (nuevas_cols) := .SD - shift(.SD, n=1L, fill=NA, type="lag"), 
+#                        .SDcols = (campos_media), by=numero_de_cliente] 
+
+#----- dif2
+nuevas_cols2 = c()
+for (col in campos_media)
+{
+  nuevas_cols2 = c(nuevas_cols2, paste0(col, "_dif2"))
+}
+
+dataset[, (nuevas_cols2) := shift(.SD, n=1L, fill=NA, type="lag"), 
+                        .SDcols = (nuevas_cols), by=numero_de_cliente]
+
+for (i in 1:length(campos_media))
+{
+  dataset[, (nuevas_cols2[i]) := dataset[[nuevas_cols[i]]] - dataset[[nuevas_cols2[i]]] ]
+}
+
+#dataset[, (nuevas_cols2) := .SD - shift(.SD, n=1L, fill=NA, type="lag"), 
+#                        .SDcols = (nuevas_cols), by=numero_de_cliente] 
+
+rm(campos_media, nuevas_cols2, nuevas_cols)
 ```
 
 
-Normalización por rango:
-```{r}
-if (con_normalizacion_rango)
-{
-  cols_nrm_rango2 <- c("ccomisiones_otras", "cpayroll_trx",
-                        "ccomisiones_mantenimiento", "cextraccion_autoservicio",
-                        "catm_trx", "ccajas_consultas",
-                        "ccallcenter_transacciones",
-                        "cprestamos_prendarios",
-                        "ctarjeta_debito_transacciones",
-                        "cprestamos_hipotecarios", "cplazo_fijo",
-                        "ccuenta_debitos_automaticos",
-                        "ctarjeta_visa_debitos_automaticos",
-                        "ctarjeta_master_debitos_automaticos",
-                        "cpagomiscuentas", "ccajeros_propios_descuentos",
-                        "ctarjeta_visa_descuentos", "ctarjeta_master_descuentos",
-                        "ccajas_depositos", "ccajas_otras",
-                        "catm_trx_other"
-                        )
-  
-  cols_nrm_rango = c()
-  for(col in cols_nrm_rango2)
-  {
-    if (col %in% colnames(dataset)){
-      cols_nrm_rango = c(cols_nrm_rango, col)
-    }
-    col1 = gsub("visa", "t", col)
-    if ((col1 != col) & (col1 %in% colnames(dataset)))
-    {
-      cols_nrm_rango = c(cols_nrm_rango, col1)
-    }
-    col1 = gsub("Visa", "t", col)
-    if ((col1 != col) & (col1 %in% colnames(dataset)))
-    {
-      cols_nrm_rango = c(cols_nrm_rango, col1)
-    }
-  }
-  cols_nrm_rango = unique(cols_nrm_rango)
-  rm(cols_nrm_rango2)
-  
-  if (FALSE) # rango total
-  {
-    nuevas_cols = c()
-    for(col in cols_nrm_rango)
-    {
-      nuevas_cols = c(nuevas_cols, paste0(col, "_nrmr"))
-    }
-    
-    dataset[, (nuevas_cols) := frank(.SD),
-            .SDcols = (cols_nrm_rango), by=foto_mes]
-  }
-  else { # rango relativo a 0
-    for(col in cols_nrm_rango)
-    {
-      nueva_col = paste0(col, "_nrmr0")
-      dataset[get(col) > 0, (nueva_col) := frank(get(col)), by=foto_mes]
-      dataset[get(col) < 0, (nueva_col) := -frankv(get(col), order=-1L), by=foto_mes]
-      dataset[get(col) == 0, (nueva_col) := 0]
-    }
-  }
-  
-  # remover cols originales
-  if (TRUE) 
-  {
-    for(col in cols_nrm_rango)
-    {
-      dataset[, (col) := NULL ]
-    }
-  }
-  
-  rm(cols_nrm_rango)
-}
-```
 
 Final:
 ```{r}

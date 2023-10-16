@@ -318,18 +318,20 @@ rm(cols_con_na, col2)
 
 Gráficos gam específicos:
 ```{r}
-#cols_a_graficar = c("active_quarter", "mactivos_margen", "mtarjeta_visa_consumo",
-#                    )
-
+if (FALSE){
+  cols_a_graficar = c("active_quarter")# "mactivos_margen", "mtarjeta_visa_consumo")
+} else {
 cols_a_graficar <- setdiff(
-  colnames(DT_bajas_hist),
-  c("numero_de_cliente", "foto_mes", 
-    "clase_ternaria", "cluster", "t_hasta_baja")
-)
+    colnames(DT_bajas_hist),
+    c("numero_de_cliente", "foto_mes", 
+      "clase_ternaria", "cluster", "t_hasta_baja")
+  )
+}
 
-DT_bajas_hist2 = copy(DT_bajas_hist)
-DT_bajas_hist2[cluster == 6, cluster := 5]
-ncluster = c(1,2,5,7,99)
+DT_bajas_hist2 = DT_bajas_hist
+#DT_bajas_hist2 = copy(DT_bajas_hist)
+#DT_bajas_hist2[cluster == 6, cluster := 5]
+ncluster = c(1,2,5,6,7,99)
    
 #--------------------------
 library(ggplot2)
@@ -337,7 +339,8 @@ setwd("~/buckets/b1/")
 dir.create(paste0("./exp/", "clusters", "/"), showWarnings = FALSE)
 setwd(paste0("./exp/", "clusters", "/"))
 
-fp = paste0("clusters3_g-clust", ncluster[1], ".pdf")
+#fp = paste0("clusters3_g-clust", ncluster[1], ".pdf")
+fp = paste0("clusters3_g-clust_f.pdf")
 pdf(file=fp, width=7, height=4)
 for (col in cols_a_graficar)   
 {
@@ -350,8 +353,10 @@ for (col in cols_a_graficar)
         xlab("t_hasta_baja") + 
         ylab(paste0(col, "")) +
         labs(colour = "Cluster") +
-        scale_color_hue(labels = c("Regular", "Sólo por el préstamo", "Sólo por el sueldo",
-                                   "Cambia de banco o retira", "Sólo por la tarjeta"))
+        scale_color_hue(labels = c("Regular", "Sólo por el préstamo", 
+                                   "Sólo por el sueldo",
+                                   "Baja saludable", "Baja saludable mayor", 
+                                   "Sólo por la tarjeta"))
         #scale_color_manual(labels = c("Regulares", "Baja"), values = c("gold", "red"))
    print(p)
 }
