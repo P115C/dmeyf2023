@@ -1,0 +1,103 @@
+```{r}
+rm(list = ls()) # remove all objects
+gc()            # garbage collection
+
+require("data.table")
+require("rlist")
+# require("zoo")
+```
+
+
+
+```{r}
+DT <- data.table(ID=c('A', 'A', 'A', 'A', 'A', 'A', 'B', 'B', 'B', 'C', 'C', 'C')
+               , mes =c('202001','202002','202003','201912','202005', '202006',
+                               '202001','202005','202003',
+                               '202003','202001','202002')
+               , value=c(1,NA,7,9,3,5,1,6,8,2,2,3))
+```
+
+```{r}
+DT
+```
+
+```{r}
+setorderv(DT, cols=c("mes"), order=c(1L))
+```
+
+```{r}
+DT
+```
+
+```{r}
+cols_con_lag = c("value")
+
+#----- media
+if (TRUE) {
+  n <- 2L 
+  cols_media = c()
+  for(col in cols_con_lag)
+  {
+    cols_media = c(cols_media, paste0(col, "_media_", n))
+  }
+  
+  DT[, (cols_media) := frollmean(.SD, n=(n), fill=NA, na.rm=TRUE, align="right", algo="fast"), 
+                        .SDcols = (cols_con_lag), by=ID]
+  
+  DT[, (cols_media) := shift(.SD, n=1L, fill=NA, type="lag"),
+                        .SDcols = (cols_media), by=ID]
+  
+  rm(cols_media, n)
+}
+
+```
+
+
+```{r}
+DT
+```
+
+
+
+```{r}
+cols_con_lag = c("value")
+
+n_lags = c(1,2)
+
+for (i in n_lags)
+{
+  cols_lag = c()
+  for(col in cols_con_lag)
+  {
+    cols_lag = c(cols_lag, paste0(col, "_lag_", i))
+  }
+  DT[, (cols_lag) := shift(.SD, n=(i), fill=NA, type="lag"), 
+                        .SDcols = (cols_con_lag), by=(ID)]
+  
+  rm(cols_lag)
+}
+```
+
+```{r}
+DT
+```
+
+```{r}
+if (TRUE) {
+  for (i in n_lags)
+  {
+    for(col in cols_con_lag)
+    {
+      col_lag = paste0(col, "_lag_", i)
+      col_delta_lag = paste0(col, "_delta_", i)
+      DT[, (col_delta_lag) := get(col) - get(col_lag)]
+    }
+    rm(col_lag, col_delta_lag)
+  }
+}
+```
+
+```{r}
+DT
+```
+

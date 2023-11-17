@@ -1,0 +1,7 @@
+Prioridad:
+    v1 - v1p      Patrizio
+    v2 - v2p      Hernán
+    v4 - v4p      Patrizio
+    v3 - v3p      Hernán
+
+"bayesiana_exp_0.Rmd" no se usa
