@@ -27,7 +27,7 @@ Parámetros:
 #  muy pronto esto se leera desde un archivo formato .yaml
 PARAM <- list()
 
-PARAM$experimento <- "v0"
+PARAM$experimento <- "EXP0"
 
 PARAM$input$dataset <- "./datasets/competencia_03.csv.gz"
 
@@ -325,6 +325,50 @@ if (FALSE) {  # Si se quiere borrar información de la pandemia
 }
 
 ```
+
+
+Media en ventana, lags:
+```{r}
+cols_con_lag <- setdiff(
+  colnames(dataset),
+  c("clase_ternaria", "foto_mes", "numero_de_cliente", 
+    "cliente_edad", "cliente_antiguedad")
+)
+
+#----- lags
+n_lags = c(1,2,3,4,5,6)
+
+for (i in n_lags)
+{
+  cols_lag = c()
+  for(col in cols_con_lag)
+  {
+    cols_lag = c(cols_lag, paste0(col, "_lag_", i))
+  }
+  dataset[, (cols_lag) := shift(.SD, n=(i), fill=NA, type="lag"), 
+                        .SDcols = (cols_con_lag), by=numero_de_cliente]
+  
+  rm(cols_lag)
+}
+
+#----- delta lags
+if (FALSE) {
+  for (i in n_lags)
+  {
+    for(col in cols_con_lag)
+    {
+      col_lag = paste0(col, "_lag_", i)
+      col_delta_lag = paste0(col, "_delta_", i)
+      dataset[, (col_delta_lag) := get(col) - get(col_lag)]
+    }
+    rm(col_lag, col_delta_lag)
+  }
+}
+  
+rm(cols_con_lag)
+```
+
+
 
 Optimización:
 ```{r}
