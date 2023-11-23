@@ -1,0 +1,138 @@
+```{r}
+rm(list = ls())
+gc()           
+require("data.table")
+require("rlist")
+require("ggplot2")
+require("RColorBrewer")
+```
+
+```{r}
+setwd("C:/Users/Usuario/Documents/P/M/dmeyf/fuente/exp/colaborativo/res")
+
+dts_nombres = c("V0", "V1", "V1p", "V2", "V2p", "V3", "V3p", "V4", "V4p")
+dts_grupos =  c(0,     1,     1,     2,    2,    3,    3,     4,     4)
+dts = list()
+i = 1
+for (i in 1:length(dts_nombres))
+{
+  nomb = dts_nombres[i]
+  g = dts_grupos[i]
+  fnomb = paste0(nomb, "_res.csv")
+  dt <- fread(fnomb)
+  dt[, variante := nomb]
+  dt[, grupo := g]
+  dts[[i]] = dt
+  i = i + 1
+}
+dtt = do.call(rbind, dts)
+dtt$grupo = as.factor(dtt$grupo)
+rm(dts, i)
+```
+
+```{r}
+table(dtt$variante)
+```
+```{r}
+dttres = dtt[ ,list(mean=mean(gan_max)), by=variante]
+setorderv(dttres, cols=c("mean"), order=-1L)
+colnames(dttres) = c("variante", "ganancia_media")
+dttres
+```
+
+
+```{r}
+ggplot(dtt) +
+  aes(x = variante, y = gan_max, fill = grupo) +
+  geom_boxplot() +
+  labs(x = "Variante", y = "Ganancia máxima") +
+  theme(axis.text=element_text(size=12, face="bold"),
+        axis.title=element_text(size=12)) +
+  theme(legend.position="none") +
+  scale_fill_brewer(palette="RdYlGn")
+```
+
+```{r}
+ggplot(dtt) +
+  aes(x = variante, y = envios_max, fill = grupo) +
+  geom_boxplot() +
+  labs(x = "Variante", y = "Envíos") +
+  theme(axis.text=element_text(size=12, face="bold"),
+        axis.title=element_text(size=12)) +
+  theme(legend.position="none") +
+  scale_fill_brewer(palette="RdYlGn")
+```
+
+
+```{r}
+v1 = dtt[variante == "V1", gan_max]
+v1p = dtt[variante == "V1p", gan_max]
+p <- wilcox.test(v1, v1p, paired = TRUE)
+p
+```
+
+```{r}
+v2 = dtt[variante == "V2", gan_max]
+v2p = dtt[variante == "V2p", gan_max]
+p <- wilcox.test(v2, v2p, paired = TRUE)
+p
+```
+
+```{r}
+v3 = dtt[variante == "V3", gan_max]
+v3p = dtt[variante == "V3p", gan_max]
+p <- wilcox.test(v3, v3p, paired = TRUE)
+p
+```
+
+```{r}
+v4 = dtt[variante == "V4", gan_max]
+v4p = dtt[variante == "V4p", gan_max]
+p <- wilcox.test(v4, v4p, paired = TRUE)
+p
+```
+
+```{r}
+v1 = dtt[variante == "V1", gan_max]
+v2 = dtt[variante == "V2", gan_max]
+p <- wilcox.test(v1, v2, paired = TRUE)
+p
+```
+
+```{r}
+v1p = dtt[variante == "V1p", gan_max]
+v2p = dtt[variante == "V2p", gan_max]
+p <- wilcox.test(v1p, v2p, paired = TRUE)
+p
+```
+
+```{r}
+v1 = dtt[variante == "V1", gan_max]
+v2 = dtt[variante == "V2", gan_max]
+v3 = dtt[variante == "V3", gan_max]
+p <- wilcox.test(v3, v2, paired = TRUE)
+p
+```
+
+```{r}
+p <- wilcox.test(v1, v3, paired = TRUE)
+p
+```
+
+
+
+Prueba frollmean() con NA:
+```{r}
+d = as.data.table(list(1:6/2, 3:8/4))
+d
+```
+
+```{r}
+d[3, V1 := NA]
+d
+```
+
+```{r}
+frollmean(d[, V1], n=3, na.rm=TRUE, fill=NA, align="right")
+```
+
