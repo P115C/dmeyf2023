@@ -1,0 +1,5 @@
+- entrenar todos meses
+- bagging
+- intrames
+
+- eliminar tmobile_app
