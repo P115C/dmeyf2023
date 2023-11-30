@@ -26,7 +26,7 @@ Parámetros:
 #  muy pronto esto se leera desde un archivo formato .yaml
 PARAM <- list()
 
-PARAM$experimento <- "HT8235"
+PARAM$experimento <- "bays6"
 
 PARAM$input$dataset <- "./datasets/competencia_03.csv.gz"
 

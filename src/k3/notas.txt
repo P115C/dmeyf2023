@@ -1,5 +1,52 @@
-- entrenar todos meses
+---------------------------------
+bays7.Rmd       como bays6.Rmd con pandemia
+bays8.Rmd       competencia 2 (sin pandemia)
+bays9.Rmd       como bays7.Rmd (con pandemia),
+                    con neg_bagging_fraction, con intrames.
+bays6.Rmd       sin pandemia
+
+bays10.Rmd      competencia 2 con pandemia, con intrames
+bays11.Rmd      como bays7.Rmd con intrames; lags (1,3,6); media(6)
+
+
+final6.Rmd      semillero de bays6.Rmd
+final6b.Rmd     semillero de bays6.Rmd 2
+final8.Rmd      semillero de bays8.Rmd
+final8b.Rmd     semillero de bays8.Rmd 2
+final7.Rmd      semillero de bays7.Rmd
+final7b.Rmd     semillero de bays7.Rmd 2
+final7-2.Rmd    final7.Rmd con 10 semillas más
+final7-3.Rmd    semillero de bays7.Rmd 3
+final7-3b.Rmd   más semillas para final7-3.Rmd
+
+
+---
+final9.Rmd      semillero de bays9.Rmd
+final9b.Rmd     semillero de bays9.Rmd 2
+
+final10.Rmd     semillero de bays10.Rmd
+final10b.Rmd    semillero de bays10.Rmd 2
+final11.Rmd     semillero de bays11.Rmd
+final11b.Rmd    semillero de bays11.Rmd 2
+
+---------------------------------
 - bagging
 - intrames
-
+- entrenar todos meses
 - eliminar tmobile_app
+
+- columna con número de cluster
+
+intra mes:
+    t_madelantosdolares / ctarjeta_t_transacciones
+    abs(mactivos_margen) + abs(mpasivos_margen)
+    mcaja_ahorro + mcaja_ahorro_adicional + mcaja_ahorro_dolares
+    mprestamos_personales + mprestamos_prendarios + mprestamos_hipotecarios
+    mpayroll + mpayroll2
+    (mprestamos_personales + mprestamos_prendarios + mprestamos_hipotecarios)  / (mpayroll + mpayroll2)
+
+---------------------------------
+
+ensamble5: final8.Rmd, final8-2.Rmd, final7.Rmd, final7b.Rmd, final7-2.Rmd
+
+---------------------------------

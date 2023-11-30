@@ -10,23 +10,23 @@ require("zoo")
 ```{r}
 # defino los parametros de la corrida, en una lista, la variable global  PARAM
 PARAM <- list()
-PARAM$experimento <- "final6"
+PARAM$experimento <- "final11"
 
 PARAM$input$dataset <- "./datasets/competencia_03.csv.gz"
 
 PARAM$input$training <- c(201901, 201902, 201903, 201904, 201905, 201906, 201907, 201908, 201909, 201910, 201911, 201912,
-                          # 202001, 202002, 202003, 202004, 202005, 202006, 202007, 202008, 202009,
+                          202001, 202002, 202003, 202004, 202005, 202006, 202007, 202008, 202009,
                           202010, 202011, 202012,
                           202101, 202102, 202103, 202104, 202105, 202106, 202107)
 
 PARAM$input$future <- c(202109) # meses donde se aplica el modelo
 PARAM$finalmodel$semilla <- 151051
 
-PARAM$finalmodel$optim$num_iterations <- 676
-PARAM$finalmodel$optim$learning_rate <- 0.075425	
-PARAM$finalmodel$optim$feature_fraction <- 0.691763	
-PARAM$finalmodel$optim$min_data_in_leaf <- 18024	
-PARAM$finalmodel$optim$num_leaves <- 1444	
+PARAM$finalmodel$optim$num_iterations <- 966
+PARAM$finalmodel$optim$learning_rate <- 0.055232
+PARAM$finalmodel$optim$feature_fraction <- 0.226426
+PARAM$finalmodel$optim$min_data_in_leaf <- 43059
+PARAM$finalmodel$optim$num_leaves <- 301		
 
 #----------------------
 # Hiperparametros FIJOS de  lightgbm
@@ -96,9 +96,9 @@ for (col in cols_reemplazar_ceros){
     dataset[foto_mes==202006, (col) := NA]
   }
   else{
-    dataset[, (col) := fifelse( (foto_mes==202006) & (get(col) == 0),  
+    dataset[, (col) := fifelse( (foto_mes==202006) & (get(col) == 0),
                               0.5 * (shift(get(col), n=1L, fill=NA, type="lag") + shift(get(col), n=1L, fill=NA, type="lead")),
-                              get(col)), 
+                              get(col)),
                      by = numero_de_cliente]
   }
 }
@@ -113,10 +113,10 @@ for (col in cols_reemplazar_ceros){
     dataset[foto_mes %in% meses, (col) := NA]
   }
   else{
-    dataset[, (col) := fifelse( (foto_mes %in% meses) & (get(col) == 0),  
-                              0.5 * (shift(get(col), n=1L, fill=NA, type="lag") + 
+    dataset[, (col) := fifelse( (foto_mes %in% meses) & (get(col) == 0),
+                              0.5 * (shift(get(col), n=1L, fill=NA, type="lag") +
                                        shift(get(col), n=1L, fill=NA, type="lead")),
-                              get(col)), 
+                              get(col)),
                       by = numero_de_cliente]
   }
 }
@@ -128,10 +128,10 @@ for (col in cols_reemplazar_ceros){
     dataset[foto_mes==201904, (col) := NA]
   }
   else{
-    dataset[, (col) := fifelse( (foto_mes==201904) & (get(col) == 0),  
-                              0.5 * (shift(get(col), n=1L, fill=NA, type="lag") + 
+    dataset[, (col) := fifelse( (foto_mes==201904) & (get(col) == 0),
+                              0.5 * (shift(get(col), n=1L, fill=NA, type="lag") +
                                        shift(get(col), n=1L, fill=NA, type="lead")),
-                              get(col)), 
+                              get(col)),
                      by = numero_de_cliente]
   }
 }
@@ -144,10 +144,10 @@ for (col in cols_reemplazar_ceros){
     dataset[foto_mes %in% meses, (col) := NA]
   }
   else{
-    dataset[, (col) := fifelse( (foto_mes %in% meses) & (get(col) == 0),  
-                              0.5 * (shift(get(col), n=1L, fill=NA, type="lag") + 
+    dataset[, (col) := fifelse( (foto_mes %in% meses) & (get(col) == 0),
+                              0.5 * (shift(get(col), n=1L, fill=NA, type="lag") +
                                        shift(get(col), n=1L, fill=NA, type="lead")),
-                              get(col)), 
+                              get(col)),
                      by = numero_de_cliente]
   }
 }
@@ -198,7 +198,7 @@ for (col in sumar_cols)
   col1 = paste0("t", col)
   col2 = paste0("Visa", col)
   col3 = paste0("Master", col)
-  
+
   dataset[, (col1) := fcase( !is.na(get(col2)) & !is.na(get(col3)), get(col2) + get(col3),
                              !is.na(get(col2)), get(col2),
                              !is.na(get(col3)), get(col3),
@@ -215,7 +215,7 @@ for (col in sumar_cols)
   col1 = gsub("visa", "t", col)
   col2 = col
   col3 = gsub("visa", "master", col)
-  
+
   dataset[, (col1) := fcase( !is.na(get(col2)) & !is.na(get(col3)), get(col2) + get(col3),
                              !is.na(get(col2)), get(col2),
                              !is.na(get(col3)), get(col3),
@@ -223,6 +223,15 @@ for (col in sumar_cols)
   dataset[, (col2) := NULL]
   dataset[, (col3) := NULL]
 }
+
+dataset[, intra1 := fcase( get("ctarjeta_t_transacciones") != 0, get("t_madelantodolares") / get("ctarjeta_t_transacciones"),
+                           default = NA ) ]
+dataset[, intra2 := get("mactivos_margen") + get("mpasivos_margen")]
+dataset[, intra3 := get("mcaja_ahorro") + get("mcaja_ahorro_adicional") + get("mcaja_ahorro_dolares")]
+dataset[, intra4 := get("mprestamos_personales") + get("mprestamos_hipotecarios") + get("mprestamos_prendarios")]
+dataset[, intra5 := get("mpayroll") + get("mpayroll2")]
+dataset[, intra6 := fcase( get("intra5") != 0, get("intra4") / get("intra5"),
+                           default = NA ) ]
 
 rm(sumar_cols, col1, col2, col3)
 ```
@@ -238,11 +247,12 @@ mapeo_ipc = data.table(foto_mes=foto_mes, ipc=ipc)
 #mapeo_ipc[, foto_mes := as.character(foto_mes)]
 rm(foto_mes, ipc)
 
-cols_pesos <- c("mcuentas_saldo", "mprestamos_personales", "mcuenta_corriente_adicional",
+cols_pesos <- c("intra1", "intra2", "intra3", "intra4", "intra5",
+                "mcuentas_saldo", "mprestamos_personales", "mcuenta_corriente_adicional",
                 "mcuenta_corriente", "mactivos_margen", "mcaja_ahorro_adicional",
                 "mcaja_ahorro", "mcomisiones_mantenimiento", "mplazo_fijo_pesos",
                 "mpasivos_margen", "mcomisiones", "mcajeros_propios_descuentos",
-                "mtarjeta_visa_consumo", "mtarjeta_t_consumo", 
+                "mtarjeta_visa_consumo", "mtarjeta_t_consumo",
                 "mrentabilidad", "mpayroll", "mpayroll2",
                 "mrentabilidad_annual", "Visa_msaldopesos",
                 "Visa_msaldototal", "Visa_mpagominimo",
@@ -293,7 +303,7 @@ for(col in cols_pesos)
 cols_pesos2 = unique(cols_pesos2)
 rm(cols_pesos)
 
-dataset[mapeo_ipc, (cols_pesos2) := (.SD) / ipc , 
+dataset[mapeo_ipc, (cols_pesos2) := (.SD) / ipc ,
           on="foto_mes", .SDcols = (cols_pesos2)]
 
 rm(mapeo_ipc, cols_pesos2, col1)
@@ -315,7 +325,7 @@ cols_con_lag <- setdiff(
 
 #----- media
 if (TRUE) {
-  n <- 5L
+  n <- 6L
   cols_media = c()
   for(col in cols_con_lag)
   {
@@ -332,7 +342,7 @@ if (TRUE) {
 }
 
 #----- lags
-n_lags = c(1,2,6)
+n_lags = c(1,3,6)
 
 for (i in n_lags) {
   cols_lag = c()
@@ -371,13 +381,13 @@ if (TRUE) {
     cols_dlag1 = c(cols_dlag1, col_nombre)
     cols_media_dlag1 = c(cols_media_dlag1, paste0(col_nombre, "_media_", n))
   }
-  
-  dataset[, (cols_media_dlag1) := frollmean(.SD, n=(n), fill=NA, align="right", algo="fast"), 
+
+  dataset[, (cols_media_dlag1) := frollmean(.SD, n=(n), fill=NA, align="right", algo="fast"),
                         .SDcols = (cols_dlag1), by=numero_de_cliente]
-  
+
   dataset[, (cols_media_dlag1) := shift(.SD, n=1L, fill=NA, type="lag"),
                         .SDcols = (cols_media_dlag1), by=numero_de_cliente]
-  
+
   rm(cols_media_dlag1, cols_dlag1, col_nombre)
 }
 
@@ -394,14 +404,14 @@ for (i in 2:2)
     cols_dif = c(cols_dif, paste0(col, "_dif2_", i))
   }
 
-  dataset[, (cols_dif) := shift(.SD, n=1L, fill=NA, type="lag"), 
+  dataset[, (cols_dif) := shift(.SD, n=1L, fill=NA, type="lag"),
                         .SDcols = (cols_dif_prev), by=numero_de_cliente]
-  
+
   for (i in 1:length(cols_con_lag))
   {
     dataset[, (cols_dif[i]) := dataset[[cols_dif_prev[i]]] - dataset[[cols_dif[i]]] ]
   }
-  
+
   cols_dif_prev = cols_dif
 }
 
@@ -428,7 +438,7 @@ if (FALSE)
                         "ccajas_depositos", "ccajas_otras",
                         "catm_trx_other"
                         )
-  
+
   cols_nrm_rango = c()
   for(col in cols_nrm_rango2)
   {
@@ -448,7 +458,7 @@ if (FALSE)
   }
   cols_nrm_rango = unique(cols_nrm_rango)
   rm(cols_nrm_rango2)
-  
+
   nuevas_cols = c()
   for(col in cols_nrm_rango)
   {
@@ -456,7 +466,7 @@ if (FALSE)
   }
   dataset[, (nuevas_cols) := frank(.SD)/.N,
           .SDcols = (cols_nrm_rango), by=foto_mes]
-  
+
   if (TRUE) # remover cols originales
   {
     for(col in cols_nrm_rango)
@@ -464,7 +474,7 @@ if (FALSE)
       dataset[, (col) := NULL ]
     }
   }
-  
+
   rm(cols_nrm_rango)
 }
 ```
@@ -510,9 +520,9 @@ param_completo <- c(PARAM$finalmodel$lgb_basicos,
   PARAM$finalmodel$optim)
 
 semillas = c(886609, 201821, 623423, 105389, 151051,
-             978323, 594421, 797897, 911159, 892627)
-#             605167, 982337, 178807, 596053, 435583,
-#             451547, 970699, 717659, 671303, 345647)
+             978323, 594421, 797897, 911159, 892627,
+             605167, 982337, 178807, 596053, 435583,
+             451547, 970699, 717659, 671303, 345647)
 
 for (s in semillas) {
   param_completo$seed = s
@@ -545,6 +555,8 @@ for (s in semillas) {
   tb_entrega[, (col_name) := prediccion] 
   cat("\n\nSemilla número", s , "hora:", Sys.time(), "\n")
   
+  archivo_salida <- paste0(PARAM$experimento, "_prob_semillas.csv")
+  fwrite(tb_entrega, file = archivo_salida, sep = ",")
 }
 
 archivo_salida <- paste0(PARAM$experimento, "_prob_semillas.csv")

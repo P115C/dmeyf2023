@@ -10,7 +10,7 @@ require("zoo")
 ```{r}
 # defino los parametros de la corrida, en una lista, la variable global  PARAM
 PARAM <- list()
-PARAM$experimento <- "final6"
+PARAM$experimento <- "final8-2"
 
 PARAM$input$dataset <- "./datasets/competencia_03.csv.gz"
 
@@ -22,11 +22,11 @@ PARAM$input$training <- c(201901, 201902, 201903, 201904, 201905, 201906, 201907
 PARAM$input$future <- c(202109) # meses donde se aplica el modelo
 PARAM$finalmodel$semilla <- 151051
 
-PARAM$finalmodel$optim$num_iterations <- 676
-PARAM$finalmodel$optim$learning_rate <- 0.075425	
-PARAM$finalmodel$optim$feature_fraction <- 0.691763	
-PARAM$finalmodel$optim$min_data_in_leaf <- 18024	
-PARAM$finalmodel$optim$num_leaves <- 1444	
+PARAM$finalmodel$optim$num_iterations <- 652
+PARAM$finalmodel$optim$learning_rate <- 0.028318	
+PARAM$finalmodel$optim$feature_fraction <- 0.969223
+PARAM$finalmodel$optim$min_data_in_leaf <- 11353
+PARAM$finalmodel$optim$num_leaves <- 652	
 
 #----------------------
 # Hiperparametros FIJOS de  lightgbm
@@ -72,6 +72,7 @@ dataset <- fread(PARAM$input$dataset, stringsAsFactors = TRUE)
 # ordernar por mes:
 setorderv(dataset, cols=c("foto_mes"), order=c(1L))
 ```
+
 
 
 Arreglar datos nulos en algunos meses:
@@ -155,6 +156,7 @@ for (col in cols_reemplazar_ceros){
 rm(meses, cols_reemplazar_ceros)
 ```
 
+
 Llenar con ceros:
 ```{r}
 cols_nans_con_ceros = c("mtarjeta_visa_descuentos", "mtarjeta_master_descuentos",
@@ -164,10 +166,12 @@ setnafill(dataset, type="const", fill=0, cols=cols_nans_con_ceros)
 rm(cols_nans_con_ceros)
 ```
 
+
 Arreglar variables con valores no esperados:
 ```{r}
 dataset[, internet := fifelse(internet > 1, 1, internet) ]
 ```
+
 
 Diferencia de estampas por cliente:
 ```{r}
@@ -178,6 +182,7 @@ dataset[, foto_mes_rangdif := {
     }, .(numero_de_cliente)]
 dataset[, foto_mes_rang := NULL]
 ```
+
 
 Juntar variables:
 ```{r}
@@ -226,6 +231,7 @@ for (col in sumar_cols)
 
 rm(sumar_cols, col1, col2, col3)
 ```
+
 
 Normalización por inflación:
 ```{r}
@@ -299,113 +305,87 @@ dataset[mapeo_ipc, (cols_pesos2) := (.SD) / ipc ,
 rm(mapeo_ipc, cols_pesos2, col1)
 ```
 
-Eliminar tmobile_app:
-```{r}
-dataset[, tmobile_app := NA]
-```
 
-Medias, lags, delta lags, dif2:
+Media en ventana, lag2, lag3, dif1, dif2:
 ```{r}
-cols_con_lag <- setdiff(
+campos_media <- setdiff(
   colnames(dataset),
-  c("clase_ternaria", "foto_mes", "numero_de_cliente",
-    "cliente_edad", "cliente_antiguedad")
+  c("foto_mes_rangdif",
+    "clase_ternaria", "foto_mes", "numero_de_cliente", 
+    "cliente_edad", "cliente_antiguedad", "ccuenta_corriente")
 )
 
-
 #----- media
-if (TRUE) {
-  n <- 5L
-  cols_media = c()
-  for(col in cols_con_lag)
-  {
-    cols_media = c(cols_media, paste0(col, "_media_", n))
-  }
-
-  dataset[, (cols_media) := frollmean(.SD, n=(n), fill=NA, na.rm=TRUE, align="right", algo="fast"),
-                        .SDcols = (cols_con_lag), by=numero_de_cliente]
-
-  dataset[, (cols_media) := shift(.SD, n=1L, fill=NA, type="lag"),
-                        .SDcols = (cols_media), by=numero_de_cliente]
-
-  rm(cols_media, n)
-}
-
-#----- lags
-n_lags = c(1,2,6)
-
-for (i in n_lags) {
-  cols_lag = c()
-  for(col in cols_con_lag)
-  {
-    cols_lag = c(cols_lag, paste0(col, "_lag_", i))
-  }
-  dataset[, (cols_lag) := shift(.SD, n=(i), fill=NA, type="lag"),
-                        .SDcols = (cols_con_lag), by=numero_de_cliente]
-
-  rm(cols_lag)
-}
-
-#----- delta lags
-if (TRUE) {
-  for (i in n_lags)
-  {
-    for(col in cols_con_lag)
-    {
-      col_lag = paste0(col, "_lag_", i)
-      col_delta_lag = paste0(col, "_delta_", i)
-      dataset[, (col_delta_lag) := get(col) - get(col_lag)]
-    }
-  }
-  rm(col_lag, col_delta_lag)
-}
-
-#----- media delta_lag_1
-if (TRUE) {
-  n <- 5L
-  cols_media_dlag1 = c()
-  cols_dlag1 = c()
-  for(col in cols_con_lag)
-  {
-    col_nombre = paste0(col, "_delta_1")
-    cols_dlag1 = c(cols_dlag1, col_nombre)
-    cols_media_dlag1 = c(cols_media_dlag1, paste0(col_nombre, "_media_", n))
-  }
-  
-  dataset[, (cols_media_dlag1) := frollmean(.SD, n=(n), fill=NA, align="right", algo="fast"), 
-                        .SDcols = (cols_dlag1), by=numero_de_cliente]
-  
-  dataset[, (cols_media_dlag1) := shift(.SD, n=1L, fill=NA, type="lag"),
-                        .SDcols = (cols_media_dlag1), by=numero_de_cliente]
-  
-  rm(cols_media_dlag1, cols_dlag1, col_nombre)
-}
-
-#----- dif2+
-cols_dif_prev = c()
-for(col in cols_con_lag) {
-  cols_dif_prev = c(cols_dif_prev, paste0(col, "_delta_1"))
-}
-for (i in 2:2)
+n <- 5L # 3L
+nuevas_cols = c()
+for(col in campos_media)
 {
-  cols_dif = c()
-  for(col in cols_con_lag)
-  {
-    cols_dif = c(cols_dif, paste0(col, "_dif2_", i))
-  }
-
-  dataset[, (cols_dif) := shift(.SD, n=1L, fill=NA, type="lag"), 
-                        .SDcols = (cols_dif_prev), by=numero_de_cliente]
-  
-  for (i in 1:length(cols_con_lag))
-  {
-    dataset[, (cols_dif[i]) := dataset[[cols_dif_prev[i]]] - dataset[[cols_dif[i]]] ]
-  }
-  
-  cols_dif_prev = cols_dif
+  nuevas_cols = c(nuevas_cols, paste0(col, "_media_", n))
 }
 
-rm(cols_con_lag, cols_dif_prev, cols_dif)
+dataset[, (nuevas_cols) := frollmean(.SD, n=(n), fill=NA, align="right", algo="fast"), 
+                      .SDcols = (campos_media), by=numero_de_cliente]
+
+dataset[, (nuevas_cols) := shift(.SD, n=1L, fill=NA, type="lag"),
+                      .SDcols = (nuevas_cols), by=numero_de_cliente] 
+
+#----- lag2
+nuevas_cols = c()
+for(col in campos_media)
+{
+  nuevas_cols = c(nuevas_cols, paste0(col, "lag2"))
+}
+
+dataset[, (nuevas_cols) := shift(.SD, n=2L, fill=NA, type="lag"), 
+                        .SDcols = (campos_media), by=numero_de_cliente]
+
+#----- lag3
+nuevas_cols = c()
+for(col in campos_media)
+{
+  nuevas_cols = c(nuevas_cols, paste0(col, "lag3"))
+}
+
+dataset[, (nuevas_cols) := shift(.SD, n=3L, fill=NA, type="lag"), 
+                        .SDcols = (campos_media), by=numero_de_cliente]
+
+#----- dif1
+nuevas_cols = c()
+for(col in campos_media)
+{
+  nuevas_cols = c(nuevas_cols, paste0(col, "_dif1"))
+}
+
+dataset[, (nuevas_cols) := shift(.SD, n=1L, fill=NA, type="lag"), 
+                        .SDcols = (campos_media), by=numero_de_cliente]
+
+for (i in 1:length(campos_media))
+{
+  dataset[, (nuevas_cols[i]) := dataset[[campos_media[i]]] - dataset[[nuevas_cols[i]]] ]
+}
+
+#dataset[, (nuevas_cols) := .SD - shift(.SD, n=1L, fill=NA, type="lag"), 
+#                        .SDcols = (campos_media), by=numero_de_cliente] 
+
+#----- dif2
+nuevas_cols2 = c()
+for (col in campos_media)
+{
+  nuevas_cols2 = c(nuevas_cols2, paste0(col, "_dif2"))
+}
+
+dataset[, (nuevas_cols2) := shift(.SD, n=1L, fill=NA, type="lag"), 
+                        .SDcols = (nuevas_cols), by=numero_de_cliente]
+
+for (i in 1:length(campos_media))
+{
+  dataset[, (nuevas_cols2[i]) := dataset[[nuevas_cols[i]]] - dataset[[nuevas_cols2[i]]] ]
+}
+
+#dataset[, (nuevas_cols2) := .SD - shift(.SD, n=1L, fill=NA, type="lag"), 
+#                        .SDcols = (nuevas_cols), by=numero_de_cliente] 
+
+rm(campos_media, nuevas_cols2, nuevas_cols)
 ```
 
 
@@ -470,6 +450,7 @@ if (FALSE)
 ```
 
 
+
 Final:
 ```{r}
 setwd("~/buckets/b1")
@@ -509,10 +490,10 @@ tb_entrega <- dapply[, list(numero_de_cliente, foto_mes)]
 param_completo <- c(PARAM$finalmodel$lgb_basicos,
   PARAM$finalmodel$optim)
 
-semillas = c(886609, 201821, 623423, 105389, 151051,
-             978323, 594421, 797897, 911159, 892627)
-#             605167, 982337, 178807, 596053, 435583,
-#             451547, 970699, 717659, 671303, 345647)
+semillas = c(#886609, 201821, 623423, 105389, 151051,
+             #978323, 594421, 797897, 911159, 892627)
+             605167, 982337, 178807, 596053, 435583,
+             451547, 970699, 717659, 671303, 345647)
 
 for (s in semillas) {
   param_completo$seed = s
@@ -543,8 +524,11 @@ for (s in semillas) {
   # Agrego columna con las predicciones de cada semilla
   col_name <- paste0("s_", s)
   tb_entrega[, (col_name) := prediccion] 
-  cat("\n\nSemilla número", s , "hora:", Sys.time(), "\n")
   
+  archivo_salida <- paste0(PARAM$experimento, "_prob_semillas.csv")
+  fwrite(tb_entrega, file = archivo_salida, sep = ",")
+  
+  cat("\n\nSemilla número", s , "hora:", Sys.time(), "\n")
 }
 
 archivo_salida <- paste0(PARAM$experimento, "_prob_semillas.csv")
