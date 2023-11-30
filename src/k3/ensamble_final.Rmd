@@ -1,0 +1,72 @@
+```{r}
+rm(list = ls())
+gc()            
+require("data.table")
+require("rlist")
+require("zoo")
+require("assert")
+```
+
+```{r}
+setwd("C:/Users/Usuario/Documents/P/M/dmeyf/fuente/exp/res3")
+
+prefijo_salidas = "ensamble7_2"
+dts_nombres = c(#"exp_final6_prob_semillas.csv",
+                #"exp_final6b_prob_semillas.csv",
+                "exp_final7_prob_semillas.csv", 
+                "exp_final7-2_prob_semillas.csv",
+                #"exp_final7-3_prob_semillas.csv",
+                "exp_final7b_prob_semillas.csv",
+                "exp_final8_prob_semillas.csv",
+                "exp_final8-2_prob_semillas.csv",
+                "exp_final11_prob_semillas.csv"
+                #"exp_final8b_prob_semillas.csv"
+                )
+
+i = 1
+for (i in 1:length(dts_nombres))
+{
+  dt <- fread(dts_nombres[i])
+  dt = dt[, foto_mes := NULL]
+  if (i == 1) {
+    dtt = dt
+  }
+  else {
+    nuevas_cols = c("numero_de_cliente")
+    cols = colnames(dt)
+    for (j in 2:length(cols)){
+      nuevas_cols <- c(nuevas_cols, paste0("m", i, "s", j-1)) 
+    }
+    colnames(dt) = nuevas_cols
+    dtt = merge(dtt, dt, by="numero_de_cliente") 
+    assert(nrow(dtt) == 165237)
+  }
+  i = i + 1
+}
+rm(i)
+```
+
+```{r}
+colnames(dtt)
+```
+
+```{r}
+setwd("C:/Users/Usuario/Documents/P/M/dmeyf/fuente/exp/res3/salidas")
+
+dtt$prob_promedio <- rowMeans(dtt[, .SD, .SDcols = -c(1)])
+# ordeno por probabilidad descendente
+setorder(dtt, -prob_promedio)
+
+# genero archivos con los envios
+cortes <- seq(8000, 15000, by = 500)
+for (envios in cortes) {
+  dtt[, Predicted := 0L]
+  dtt[1:envios, Predicted := 1L]
+
+  fwrite(dtt[, list(numero_de_cliente, Predicted)],
+    file = paste0(prefijo_salidas, "_", envios, ".csv"),
+    sep = ","
+  )
+}
+```
+
